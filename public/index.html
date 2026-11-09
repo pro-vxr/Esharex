@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<title>eShareX</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="/ui-polish.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+    :root { --bg: #080808; --surface: #141414; --surface2: #1a1a1a; --accent: #C7C22A; --text: #F5F5F5; --border: #222; --text-dim: #888; --danger: #FF5A5A; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+    input, textarea { user-select: text; -webkit-user-select: text; }
+    
+    body { background: var(--bg); color: var(--text); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; position: fixed; inset: 0; }
+    
+    .screen { display: none; flex-direction: column; height: 100%; width: 100%; align-items: center; justify-content: center; padding: 24px; }
+    .screen.active { display: flex; }
+    
+    .logo { font-size: 64px; color: var(--accent); margin-bottom: 20px; filter: drop-shadow(0 0 20px rgba(199,194,42,0.3)); }
+    h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; text-align: center; }
+    p.subtitle { color: var(--text-dim); font-size: 14px; margin-bottom: 32px; text-align: center; max-width: 320px; line-height: 1.5; }
+    
+    .btn { width: 100%; max-width: 320px; padding: 16px; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: inherit; transition: transform 0.15s; }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--accent); color: #000; }
+    
+    .input-group { width: 100%; max-width: 320px; margin-bottom: 16px; text-align: left; }
+    .input-group label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+    .input-group input { width: 100%; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: #fff; font-size: 16px; outline: none; font-family: inherit; }
+    .input-group input:focus { border-color: var(--accent); }
+    
+    #chatScreen { padding: 0; justify-content: flex-start; }
+    
+    .header { width: 100%; background: var(--surface); padding: calc(14px + env(safe-area-inset-top)) 16px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); flex-shrink: 0; position: relative; z-index: 10; }
+    .header-info { display: flex; align-items: center; gap: 12px; }
+    .header-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #000; font-size: 16px; }
+    .header h2 { font-size: 16px; font-weight: 700; }
+    .header span { font-size: 11px; color: var(--accent); display: block; }
+    .header button { background: none; border: none; color: var(--text-dim); font-size: 18px; cursor: pointer; padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+    
+    .menu { position: absolute; top: calc(60px + env(safe-area-inset-top)); right: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: none; flex-direction: column; min-width: 220px; z-index: 100; padding: 6px; }
+    .menu.show { display: flex; animation: fadeIn 0.15s ease-out; }
+    .menu-item { padding: 12px 16px; font-size: 14px; color: var(--text); display: flex; align-items: center; gap: 12px; cursor: pointer; border-radius: 8px; }
+    .menu-item:hover { background: var(--surface2); }
+    .menu-item.danger { color: var(--danger); }
+    .menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .messages { flex: 1; width: 100%; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth; }
+    
+    .msg-container { display: flex; flex-direction: column; width: 100%; transition: transform 0.2s ease; touch-action: pan-y; position: relative; }
+    .msg-container.me { align-items: flex-end; }
+    .msg-container.other { align-items: flex-start; }
+    
+    .swipe-reply-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--accent); font-size: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .msg-container.other .swipe-reply-icon { left: auto; right: 10px; }
+
+    .msg { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.45; word-wrap: break-word; position: relative; cursor: pointer; }
+    .msg.me { background: var(--accent); color: #000; border-bottom-right-radius: 4px; }
+    .msg.other { background: var(--surface); border-bottom-left-radius: 4px; }
+    .msg .name { font-size: 11px; font-weight: bold; color: var(--accent); margin-bottom: 4px; display: block; }
+    .msg.me .name { color: #000; opacity: 0.6; }
+    .msg img { max-width: 100%; border-radius: 8px; margin-top: 5px; display: block; }
+    .msg a { color: inherit; text-decoration: underline; font-weight: 600; }
+    
+    .reply-quote { background: rgba(0,0,0,0.1); border-left: 3px solid var(--accent); padding: 6px 10px; border-radius: 4px; margin-bottom: 8px; font-size: 12px; text-align: left; }
+    .msg.me .reply-quote { border-left-color: #000; background: rgba(0,0,0,0.15); }
+    .msg.other .reply-quote { border-left-color: var(--accent); background: var(--surface2); color: var(--text); }
+    
+    .msg-actions { display: flex; gap: 8px; margin-top: 6px; justify-content: flex-end; }
+    .msg.me .msg-actions { justify-content: flex-end; }
+    .msg.other .msg-actions { justify-content: flex-start; }
+    .action-btn { background: none; border: none; font-size: 12px; color: #555; cursor: pointer; padding: 2px; }
+    .msg.me .action-btn { color: rgba(0,0,0,0.5); }
+    .msg.other .action-btn { color: var(--text-dim); }
+    
+    .reply-bar { display: none; background: var(--surface); padding: 8px 16px; border-top: 1px solid var(--border); border-left: 4px solid var(--accent); align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .reply-bar.show { display: flex; }
+    .reply-content { display: flex; flex-direction: column; overflow: hidden; }
+    .reply-content strong { font-size: 12px; color: var(--accent); }
+    .reply-content span { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .reply-bar button { background: none; border: none; color: var(--text-dim); font-size: 18px; cursor: pointer; padding: 8px; }
+    
+    .input-area { width: 100%; background: var(--surface); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 8px; border-top: 1px solid var(--border); align-items: flex-end; flex-shrink: 0; }
+    .attach-btn { background: var(--surface2); width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; color: var(--text-dim); flex-shrink: 0; border: none; }
+    #msgInput { flex: 1; background: var(--bg); border: 1.5px solid var(--border); padding: 12px 16px; border-radius: 22px; color: #fff; outline: none; font-size: 15px; font-family: inherit; resize: none; max-height: 120px; min-height: 44px; line-height: 1.4; }
+    #msgInput:focus { border-color: var(--accent); }
+    .send-btn { background: var(--accent); border: none; width: 44px; height: 44px; border-radius: 50%; color: #000; font-size: 18px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    #fileInput { display: none; }
+
+    .preview-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; flex-direction: column; padding: 20px; backdrop-filter: blur(10px); }
+    .preview-overlay.show { display: flex; }
+    .preview-header { display: flex; justify-content: flex-end; margin-bottom: 20px; margin-top: env(safe-area-inset-top); }
+    .preview-header button { background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; }
+    .preview-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; overflow: hidden; }
+    .preview-body img, .preview-body video { max-width: 100%; max-height: 60vh; border-radius: 12px; object-fit: contain; }
+    .preview-caption { width: 100%; max-width: 500px; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; color: #fff; font-size: 15px; outline: none; font-family: inherit; }
+    .preview-actions { display: flex; gap: 12px; width: 100%; max-width: 500px; margin-top: 20px; padding-bottom: env(safe-area-inset-bottom); }
+    .preview-actions button { flex: 1; padding: 16px; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; }
+    .btn-cancel { background: var(--surface2); color: var(--text); }
+    .btn-send { background: var(--accent); color: #000; }
+
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: center; padding: 20px; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; width: 100%; max-width: 340px; text-align: center; }
+    .modal h3 { font-size: 18px; margin-bottom: 8px; }
+    .modal p { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; line-height: 1.5; }
+    .qr-container { background: #fff; padding: 16px; border-radius: 12px; display: inline-block; margin-bottom: 16px; }
+    .ip-text { font-size: 18px; font-weight: bold; color: var(--accent); background: var(--surface2); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-family: monospace; user-select: all; }
+</style>
+</head>
+<body>
+
+<div class="screen active" id="homeScreen">
+    <i class="fas fa-wifi logo"></i>
+    <h1>eShareX</h1>
+    <p class="subtitle">Enter your name to join the local chat room.</p>
+    
+    <div class="input-group">
+        <label>Username</label>
+        <input type="text" id="joinName" placeholder="e.g. John's Phone">
+    </div>
+    
+    <button class="btn btn-primary" onclick="enterChat()">Join Chat</button>
+</div>
+
+<div class="screen" id="chatScreen">
+    <div class="header">
+        <div class="header-info">
+            <div class="header-icon"><i class="fas fa-wifi"></i></div>
+            <div>
+                <h2>eShareX Room</h2>
+                <span id="headerStatus">Connected</span>
+            </div>
+        </div>
+        <button onclick="toggleMenu(event)"><i class="fas fa-ellipsis-v"></i></button>
+        
+        <div class="menu" id="dropdownMenu">
+            <div class="menu-item" onclick="showIp()"><i class="fas fa-qrcode"></i> Show IP & QR Code</div>
+            <div class="menu-item" onclick="shareChat()"><i class="fas fa-share-alt"></i> Share Chat Link</div>
+            <div class="menu-divider"></div>
+            <div class="menu-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Leave Room</div>
+        </div>
+    </div>
+
+    <div class="messages" id="messagesArea"></div>
+
+    <div class="reply-bar" id="replyBar">
+        <div class="reply-content">
+            <strong id="replyName"></strong>
+            <span id="replyText"></span>
+        </div>
+        <button onclick="cancelReply()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div class="input-area">
+        <label for="fileInput" class="attach-btn"><i class="fas fa-paperclip"></i></label>
+        <input type="file" id="fileInput">
+        <textarea id="msgInput" placeholder="Message..." rows="1"></textarea>
+        <button class="send-btn" onclick="sendMsg()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+</div>
+
+<div class="preview-overlay" id="previewOverlay">
+    <div class="preview-header">
+        <button onclick="cancelFile()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="preview-body">
+        <img id="previewImage" src="" style="display:none;">
+        <video id="previewVideo" controls style="display:none;"></video>
+        <div id="previewDoc" style="display:none; font-size: 48px; color: var(--accent); text-align: center;"></div>
+        <input type="text" class="preview-caption" id="previewCaption" placeholder="Add a caption...">
+    </div>
+    <div class="preview-actions">
+        <button class="btn-cancel" onclick="cancelFile()">Cancel</button>
+        <button class="btn-send" onclick="sendFile()">Send</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="ipModal">
+    <div class="modal">
+        <h3>Join via Browser</h3>
+        <p>Scan the QR code or type this IP to join the room on another device.</p>
+        <div class="qr-container" id="qrcode"></div>
+        <div class="ip-text" id="ipDisplay">Loading...</div>
+        <button class="btn btn-primary" onclick="closeIpModal()">Close</button>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    let socket;
+    let myName = '';
+    let currentFile = null;
+    let replyTo = null;
+
+    const deviceName = /Android|iPhone|iPad/i.test(navigator.userAgent) ? 'Mobile Device' : 'Laptop';
+    document.getElementById('joinName').value = deviceName;
+
+    const msgInput = document.getElementById('msgInput');
+    const messagesArea = document.getElementById('messagesArea');
+    const dropdownMenu = document.getElementById('dropdownMenu');
+
+    msgInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+        if (this.value === '') this.style.height = '44px';
+    });
+
+    function enterChat() {
+        myName = document.getElementById('joinName').value.trim();
+        if (!myName) return alert('Please enter a name');
+        
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('chatScreen').classList.add('active');
+        connectSocket();
+    }
+
+    function connectSocket() {
+        socket = io();
+        socket.on('history', (msgs) => {
+            messagesArea.innerHTML = '';
+            msgs.forEach(m => renderMsg(m));
+        });
+        socket.on('message', (msg) => {
+            renderMsg(msg);
+        });
+    }
+
+    function renderMsg(msg) {
+        const container = document.createElement('div');
+        container.className = 'msg-container ' + (msg.username === myName ? 'me' : 'other');
+        
+        const swipeIcon = document.createElement('i');
+        swipeIcon.className = 'fas fa-reply swipe-reply-icon';
+        container.appendChild(swipeIcon);
+
+        const div = document.createElement('div');
+        div.className = 'msg ' + (msg.username === myName ? 'me' : 'other');
+        
+        let content = '';
+        if (msg.username !== myName) content += `<span class="name">${msg.username}</span>`;
+
+        if (msg.replyTo) {
+            content += `<div class="reply-quote"><strong>${msg.replyTo.username}</strong><br>${msg.replyTo.text || 'File'}</div>`;
+        }
+        
+        if (msg.type === 'file') {
+            if (msg.mime.startsWith('image/')) {
+                content += `<img src="${msg.url}" onclick="event.stopPropagation(); window.open('${msg.url}', '_blank')">`;
+            } else if (msg.mime.startsWith('video/')) {
+                content += `<video src="${msg.url}" controls style="max-width:100%; border-radius:8px; margin-top:5px;"></video>`;
+            } else {
+                content += `<a href="${msg.url}" target="_blank" onclick="event.stopPropagation()"><i class="fas fa-download"></i> ${msg.filename}</a>`;
+            }
+            if (msg.caption) content += `<div style="margin-top: 6px;">${escapeHtml(msg.caption)}</div>`;
+        } else {
+            content += escapeHtml(msg.text);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'msg-actions';
+        actions.innerHTML = `
+            <button class="action-btn" onclick="event.stopPropagation(); setupReply(${JSON.stringify(msg).replace(/"/g, '&quot;')})"><i class="fas fa-reply"></i></button>
+            <button class="action-btn" onclick="event.stopPropagation(); copyText('${escapeHtml(msg.text || msg.caption || 'File').replace(/'/g, "\\'")}')"><i class="fas fa-copy"></i></button>
+        `;
+
+        div.innerHTML = content;
+        div.appendChild(actions);
+        container.appendChild(div);
+
+        let startX = 0;
+        container.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+        }, { passive: true });
+
+        container.addEventListener('touchmove', (e) => {
+            const currentX = e.touches[0].clientX;
+            const diff = currentX - startX;
+            
+            if (msg.username === myName && diff < 0) {
+                const move = Math.max(diff, -60);
+                div.style.transform = `translateX(${move}px)`;
+                swipeIcon.style.opacity = Math.min(Math.abs(move) / 40, 1);
+            } else if (msg.username !== myName && diff > 0) {
+                const move = Math.min(diff, 60);
+                div.style.transform = `translateX(${move}px)`;
+                swipeIcon.style.opacity = Math.min(move / 40, 1);
+            }
+        }, { passive: true });
+
+        container.addEventListener('touchend', (e) => {
+            const currentX = e.changedTouches[0].clientX;
+            const diff = currentX - startX;
+            
+            div.style.transform = '';
+            swipeIcon.style.opacity = 0;
+
+            if ((msg.username === myName && diff < -40) || (msg.username !== myName && diff > 40)) {
+                setupReply(msg);
+            }
+        });
+
+        messagesArea.appendChild(container);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
+    function copyText(text) {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+    }
+
+    function setupReply(msg) {
+        replyTo = msg;
+        document.getElementById('replyBar').classList.add('show');
+        document.getElementById('replyName').textContent = msg.username;
+        document.getElementById('replyText').textContent = msg.type === 'file' ? 'File' : msg.text.substring(0, 40);
+        msgInput.focus();
+    }
+
+    function cancelReply() {
+        replyTo = null;
+        document.getElementById('replyBar').classList.remove('show');
+    }
+
+    function cancelFile() {
+        currentFile = null;
+        document.getElementById('fileInput').value = '';
+        document.getElementById('previewOverlay').classList.remove('show');
+        document.getElementById('previewCaption').value = '';
+    }
+
+    function sendMsg() {
+        const text = msgInput.value.trim();
+        if (!text) return;
+
+        socket.emit('chat', { text: text, username: myName, replyTo: replyTo });
+        
+        msgInput.value = '';
+        msgInput.style.height = '44px';
+        cancelReply();
+    }
+
+    async function sendFile() {
+        if (!currentFile) return;
+        const caption = document.getElementById('previewCaption').value.trim();
+
+        const formData = new FormData();
+        formData.append('file', currentFile);
+        formData.append('username', myName);
+        formData.append('caption', caption);
+        if (replyTo) formData.append('replyTo', JSON.stringify(replyTo));
+
+        await fetch('/api/upload', { method: 'POST', body: formData });
+        
+        cancelFile();
+        cancelReply();
+    }
+
+    msgInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMsg();
+        }
+    });
+
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        currentFile = file;
+        
+        const img = document.getElementById('previewImage');
+        const video = document.getElementById('previewVideo');
+        const doc = document.getElementById('previewDoc');
+
+        img.style.display = 'none';
+        video.style.display = 'none';
+        doc.style.display = 'none';
+
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                img.src = ev.target.result;
+                img.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        } else if (file.type.startsWith('video/')) {
+            video.src = URL.createObjectURL(file);
+            video.style.display = 'block';
+        } else {
+            doc.innerHTML = `<i class="fas fa-file"></i><br><span style="font-size: 16px; color: #fff;">${file.name}</span>`;
+            doc.style.display = 'block';
+        }
+        
+        document.getElementById('previewOverlay').classList.add('show');
+    });
+
+    function toggleMenu(e) {
+        if(e) e.stopPropagation();
+        dropdownMenu.classList.toggle('show');
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!dropdownMenu.contains(e.target) && !e.target.closest('button')) {
+            dropdownMenu.classList.remove('show');
+        }
+    });
+
+    function showIp() {
+        dropdownMenu.classList.remove('show');
+        document.getElementById('qrcode').innerHTML = '';
+        fetch('/api/server-info')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('ipDisplay').textContent = data.address;
+                new QRCode(document.getElementById("qrcode"), {
+                    text: data.address,
+                    width: 180,
+                    height: 180,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+                document.getElementById('ipModal').classList.add('show');
+            });
+    }
+
+    function closeIpModal() {
+        document.getElementById('ipModal').classList.remove('show');
+    }
+
+    function shareChat() {
+        dropdownMenu.classList.remove('show');
+        const text = "Join my eShareX room at: http://" + window.location.host;
+        if (navigator.share) {
+            navigator.share({ title: 'eShareX', text: text, url: window.location.href });
+        } else {
+            navigator.clipboard.writeText(text);
+            alert('Link copied to clipboard!');
+        }
+    }
+
+    function logout() {
+        dropdownMenu.classList.remove('show');
+        location.reload();
+    }
+</script>
+    <script type="module" src="/app.bundle.js"></script>
+</body>
+</html>
