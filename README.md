@@ -71,7 +71,7 @@ This is a local-network collaboration app, not an internet-facing secure messeng
 - HTTP server port: 8080.
 
 
-## Version 2.1.0 UI and messaging update
+## Version 2.2.0 UI and messaging update
 
 - Simplified the shared header and reduced primary navigation to Chat and Friends.
 - The joined session stays on Chat when browser Back is used; the landing page is shown again after logout.

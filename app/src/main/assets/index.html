@@ -50,12 +50,38 @@
 .joinrow .btn{min-height:54px}.footer{font-size:10px;padding:8px 12px 10px}.nav{margin-bottom:8px}
 .nav a{padding:10px 5px;font-size:13px}.chat-panel,#dmPanel{height:calc(100dvh - 190px);height:calc(100svh - 190px)}
 .messages{padding:12px 8px}.bubble{max-width:84%;font-size:14px}}
+
+/* 2.2 conversation and brand refinements */
+.brand{color:var(--text)!important;text-decoration:none!important;cursor:default}
+.brand:link,.brand:visited,.brand:hover,.brand:active{color:var(--text)!important;text-decoration:none!important}
+.brand span:last-child{color:var(--text)!important;text-decoration:none!important}
+.top-actions .iconbtn{display:grid;place-items:center}
+.nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+.nav a{display:flex;justify-content:center;align-items:center;gap:8px}
+.composer{display:flex;flex-wrap:nowrap;align-items:flex-end;gap:9px;padding:10px}
+.composer-field{position:relative;display:flex;align-items:flex-end;flex:1;min-width:0;background:#090d13;border:1px solid var(--line);border-radius:17px;padding:4px 48px 4px 8px}
+.composer-field:focus-within{border-color:var(--accent)}
+.composer-field textarea{display:block;flex:1;min-width:0;width:100%;min-height:40px;max-height:120px;padding:9px 7px;background:transparent;border:0;outline:0;resize:none;line-height:1.4}
+.composer-field textarea:focus{border:0}
+.attach-inline{position:absolute;right:7px;bottom:6px;width:34px;height:34px;border:0;border-radius:11px;background:transparent;color:var(--muted);font-size:23px;display:grid;place-items:center}
+.attach-inline:active{color:var(--accent);background:var(--panel2)}
+.composer .send{flex:0 0 44px;width:44px;height:44px;border-radius:50%;font-size:19px}
+.msgrow{position:relative}
+.msg-actions{align-self:flex-start;margin-left:8px}
+.msgrow.mine .msg-actions{align-self:flex-end;margin-right:8px}
+.chat-panel{width:100%;max-width:none}
+@media(max-width:600px){
+ .composer{gap:7px;padding:9px}
+ .composer-field textarea{min-height:38px;font-size:15px}
+ .composer .send{flex-basis:42px;width:42px;height:42px}
+ .attach-inline{bottom:5px}
+}
 </style>
 </head>
 <body>
 <div class="app">
 <header class="topbar">
- <a class="brand" href="/" onclick="navigate(event,'/')"><span class="brandmark">eX</span><span>eShareX</span></a>
+ <div class="brand" aria-label="eShareX"><span class="brandmark">eX</span><span>eShareX</span></div>
  <div class="top-actions"><button class="iconbtn share-action" aria-label="Share eShareX" onclick="shareApp()">↗</button><button class="iconbtn" aria-label="More options" onclick="toggleMenu()">⋮</button></div>
  <div class="menu" id="moreMenu">
   <button onclick="showServerInfo()">⌁ &nbsp; IP & server information</button>
@@ -85,16 +111,14 @@
   <div class="messages" id="generalMessages"><div class="empty">Join the network to load messages.</div></div>
   <div class="composer">
    <input type="file" id="fileInput" hidden>
-   <input type="file" id="cameraInput" accept="image/*,video/*" capture="environment" hidden>
-   <textarea id="generalInput" rows="1" placeholder="Type a message..."></textarea>
-   <div class="composer-tools"><div class="tool-group">
-    <button class="toolbtn" onclick="document.getElementById('fileInput').click()" title="Attach file">＋</button>
-    <button class="toolbtn" onclick="document.getElementById('cameraInput').click()" title="Camera">◎</button>
-    <button class="toolbtn" id="recordButton" onclick="toggleRecording()" title="Record voice">🎙</button>
-   </div><button class="send" onclick="sendGeneral()" aria-label="Send message">➤</button></div>
+   <div class="composer-field">
+    <textarea id="generalInput" rows="1" placeholder="Message..." aria-label="Message"></textarea>
+    <button class="attach-inline" onclick="document.getElementById('fileInput').click()" title="Attach media" aria-label="Attach media">＋</button>
+   </div>
+   <button class="send" onclick="sendGeneral()" aria-label="Send message">➤</button>
   </div>
  </div><aside class="panel sidepanel"><h3>People online</h3><div id="onlineList"></div></aside></div>
-<div id="dmPanel" class="panel chat-panel" style="display:none"><div class="chathead"><strong id="dmTitle">Private conversation</strong><div><button class="btn secondary" style="padding:8px 10px" onclick="exportDM()">Export</button> <button class="iconbtn" onclick="closeDM()">×</button></div></div><div class="messages" id="dmMessages"></div><div class="composer"><textarea id="dmInput" rows="1" placeholder="Type a message..."></textarea><div class="composer-tools"><div class="tool-group"><button class="toolbtn" onclick="document.getElementById('fileInput').click()">＋</button><button class="toolbtn" onclick="document.getElementById('cameraInput').click()">◎</button><button class="toolbtn" onclick="toggleRecording()">🎙</button></div><button class="send" onclick="sendDM()">➤</button></div></div></div>
+<div id="dmPanel" class="panel chat-panel" style="display:none"><div class="chathead"><strong id="dmTitle">Private conversation</strong><div><button class="btn secondary" style="padding:8px 10px" onclick="exportDM()">Export</button> <button class="iconbtn" onclick="closeDM()">×</button></div></div><div class="messages" id="dmMessages"></div><div class="composer"><div class="composer-field"><textarea id="dmInput" rows="1" placeholder="Message..." aria-label="Private message"></textarea><button class="attach-inline" onclick="document.getElementById('fileInput').click()" title="Attach media" aria-label="Attach media">＋</button></div><button class="send" onclick="sendDM()" aria-label="Send message">➤</button></div></div>
 </section>
 <section class="page" id="friendsPage">
  <div class="chat-context"><span class="context-icon">♧</span><div class="context-title"><strong>Friends</strong><small id="friendsOnline">0 online</small></div><button class="iconbtn" onclick="toggleMenu()">⋮</button></div>
@@ -166,17 +190,8 @@ async function enableNotifications(){return requestNotificationPermission()}
 function leaveRoom(){localStorage.removeItem('esharex_name');myName='';if(poller)clearInterval(poller);if(heartbeat)clearInterval(heartbeat);closeDM();go('/')}
 let deferredInstall=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e});async function installPWA(){if(deferredInstall){deferredInstall.prompt();deferredInstall=null}else toast('Use your browser menu → Install app / Add to Home screen')}
 function openMedia(type,url){$('mediaContent').innerHTML='';let el=document.createElement(type);el.src=url;if(type==='video')el.controls=true;$('mediaContent').appendChild(el);$('mediaModal').classList.add('show')}
-async function toggleRecording(){
- if(mediaRecorder&&mediaRecorder.state==='recording'){mediaRecorder.stop();$('recordButton').textContent='🎙';return}
- if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder)return toast('Voice recording is not supported in this browser');
- try{let stream=await navigator.mediaDevices.getUserMedia({audio:true});recordedChunks=[];mediaRecorder=new MediaRecorder(stream);
- mediaRecorder.ondataavailable=e=>{if(e.data.size)recordedChunks.push(e.data)};
- mediaRecorder.onstop=async()=>{let blob=new Blob(recordedChunks,{type:mediaRecorder.mimeType||'audio/webm'});stream.getTracks().forEach(t=>t.stop());let file=new File([blob],'voice-message.webm',{type:blob.type});await uploadSelectedFile(file)};
- mediaRecorder.start();$('recordButton').textContent='■';toast('Recording voice message…')
- }catch(_){toast('Microphone permission was not granted')}
-}
 $('fileInput').addEventListener('change',e=>{let f=e.target.files[0];if(f)uploadSelectedFile(f);e.target.value=''});
-$('cameraInput').addEventListener('change',e=>{let f=e.target.files[0];if(f)uploadSelectedFile(f);e.target.value=''});
+
 async function uploadSelectedFile(f){if(!f)return;let cap=prompt('Add a caption (optional):')||'';let fd=new FormData();fd.append('file',f,f.name);fd.append('username',myName);fd.append('userId',deviceId);fd.append('caption',cap);if(currentPeer){fd.append('from',deviceId);fd.append('to',currentPeer.id)}if(replyTarget)fd.append('replyTo',JSON.stringify({text:replyTarget.text||replyTarget.caption||replyTarget.filename||'Attachment'}));replyTarget=null;try{await fetch('/api/upload',{method:'POST',body:fd});if(currentPeer)loadDM();else loadGeneral()}catch(_){toast('Upload failed')}}
 $('generalInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'});
 $('dmInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'});
