@@ -187,6 +187,19 @@
     </div>
 </div>
 
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            try {
+                const NodeJS = window.Capacitor.registerPlugin('NodeJS');
+                await NodeJS.start();
+                console.log("Local eShareX Server Started!");
+            } catch (e) {
+                console.error("Failed to start Node server:", e);
+            }
+        }
+    });
+</script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
     let socket;
