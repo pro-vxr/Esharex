@@ -187,20 +187,7 @@
     </div>
 </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', async () => {
-        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-            try {
-                const NodeJS = window.Capacitor.registerPlugin('NodeJS');
-                await NodeJS.start();
-                console.log("Local eShareX Server Started!");
-            } catch (e) {
-                console.error("Failed to start Node server:", e);
-            }
-        }
-    });
-</script>
-<script src="/socket.io/socket.io.js"></script>
+
 <script>
     let socket;
     let myName = '';
@@ -229,15 +216,42 @@
         connectSocket();
     }
 
-    function connectSocket() {
-        socket = io();
-        socket.on('history', (msgs) => {
+    let seenMessageIds = new Set();
+    let pollHandle = null;
+
+    async function connectSocket() {
+        document.getElementById('headerStatus').textContent = 'Connecting…';
+        try {
+            const response = await fetch('/api/messages');
+            if (!response.ok) throw new Error('Server unavailable');
+            const history = await response.json();
             messagesArea.innerHTML = '';
-            msgs.forEach(m => renderMsg(m));
-        });
-        socket.on('message', (msg) => {
-            renderMsg(msg);
-        });
+            seenMessageIds.clear();
+            history.forEach(msg => { seenMessageIds.add(msg.id); renderMsg(msg); });
+            document.getElementById('headerStatus').textContent = 'Connected';
+            if (pollHandle) clearInterval(pollHandle);
+            pollHandle = setInterval(pollMessages, 1500);
+        } catch (error) {
+            document.getElementById('headerStatus').textContent = 'Reconnecting…';
+            setTimeout(connectSocket, 2500);
+        }
+    }
+
+    async function pollMessages() {
+        try {
+            const response = await fetch('/api/messages');
+            if (!response.ok) return;
+            const history = await response.json();
+            history.forEach(msg => {
+                if (!seenMessageIds.has(msg.id)) {
+                    seenMessageIds.add(msg.id);
+                    renderMsg(msg);
+                }
+            });
+            document.getElementById('headerStatus').textContent = 'Connected';
+        } catch (_) {
+            document.getElementById('headerStatus').textContent = 'Reconnecting…';
+        }
     }
 
     function renderMsg(msg) {
@@ -252,10 +266,10 @@
         div.className = 'msg ' + (msg.username === myName ? 'me' : 'other');
         
         let content = '';
-        if (msg.username !== myName) content += `<span class="name">${msg.username}</span>`;
+        if (msg.username !== myName) content += `<span class="name">${escapeHtml(msg.username)}</span>`;
 
         if (msg.replyTo) {
-            content += `<div class="reply-quote"><strong>${msg.replyTo.username}</strong><br>${msg.replyTo.text || 'File'}</div>`;
+            content += `<div class="reply-quote"><strong>${escapeHtml(msg.replyTo.username)}</strong><br>${msg.replyTo.text || 'File'}</div>`;
         }
         
         if (msg.type === 'file') {
@@ -353,7 +367,11 @@
         const text = msgInput.value.trim();
         if (!text) return;
 
-        socket.emit('chat', { text: text, username: myName, replyTo: replyTo });
+        fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, username: myName, replyTo })
+        }).catch(() => alert('Could not send message. Check the host connection.'));
         
         msgInput.value = '';
         msgInput.style.height = '44px';
@@ -370,7 +388,8 @@
         formData.append('caption', caption);
         if (replyTo) formData.append('replyTo', JSON.stringify(replyTo));
 
-        await fetch('/api/upload', { method: 'POST', body: formData });
+        const response = await fetch('/api/upload', { method: 'POST', body: formData });
+        if (!response.ok) { alert('File upload failed.'); return; }
         
         cancelFile();
         cancelReply();
@@ -433,14 +452,18 @@
             .then(res => res.json())
             .then(data => {
                 document.getElementById('ipDisplay').textContent = data.address;
-                new QRCode(document.getElementById("qrcode"), {
-                    text: data.address,
-                    width: 180,
-                    height: 180,
-                    colorDark: "#000000",
-                    colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.H
-                });
+                if (window.QRCode) {
+                    new QRCode(document.getElementById("qrcode"), {
+                        text: data.address,
+                        width: 180,
+                        height: 180,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                } else {
+                    document.getElementById("qrcode").textContent = "QR code needs internet; use the address above.";
+                }
                 document.getElementById('ipModal').classList.add('show');
             });
     }

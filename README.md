@@ -1,28 +1,48 @@
-# eShareX
+# eShareX — Native Android build
 
-## Build the Android app from GitHub Actions
+This version replaces the Capacitor + embedded Node.js runtime with a small native Java Android host.
 
-The workflow creates a signed release APK. Android requires each update to keep the same application ID and signing key, so create one release key and keep using it for every build.
+## What changed
 
-Create the key once on your computer and store it somewhere safe outside the repository:
+- Native Java Android shell with WebView for the existing eShareX interface.
+- Lightweight embedded NanoHTTPD server; no Node.js runtime is packaged.
+- HTTP polling for chat updates instead of Socket.IO, so ordinary browsers can join.
+- Multipart file uploads stored in the app's private files directory.
+- Foreground service with an ongoing notification while hosting.
+- Android file picker support for selecting files from the WebView.
+- GitHub Actions workflow builds a debug APK automatically.
 
-```powershell
-keytool -genkeypair -v -keystore esharex-release.jks -alias esharex -keyalg RSA -keysize 2048 -validity 10000
-```
+## Build on GitHub
 
-In PowerShell, convert the keystore file to Base64:
+1. Upload the contents of this project to the root of your eShareX repository (not the containing folder).
+2. Commit to `main` or `master`.
+3. Open **Actions → Build eShareX APK**.
+4. Wait for the workflow to finish, open the run, and download the `eShareX-debug-apk` artifact.
+5. Extract the APK from the downloaded artifact ZIP and install it on Android.
 
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes(".\esharex-release.jks")) | Set-Clipboard
-```
+No signing secrets are required for the debug APK. A debug APK is for testing; a later Play Store or public release should use a persistent private signing key.
 
-In GitHub, open **Settings → Secrets and variables → Actions → New repository secret** and add these secrets:
+## How to use
 
-- `ANDROID_KEYSTORE_BASE64`: the clipboard contents
-- `ANDROID_KEYSTORE_PASSWORD`: the keystore password chosen above
-- `ANDROID_KEY_ALIAS`: `esharex`
-- `ANDROID_KEY_PASSWORD`: the key password chosen above
+1. Install and open eShareX on the Android phone that will host the room.
+2. Keep the phone connected to the same Wi-Fi network or hotspot as the joining devices.
+3. Enter a username and join the chat.
+4. Open the menu and choose **Show IP & QR Code**.
+5. Other devices open the displayed `http://IP:8080` address in their browser.
 
-Keep the `.jks` file and passwords private. The workflow builds a higher `versionCode` on every run and uploads `app-release.apk` as the `eShareX-Release-APK` artifact.
+The host must keep the eShareX foreground service running. Android battery management can still stop background work on some devices.
 
-The first release-signed APK cannot update an older APK signed with a different debug key. Uninstall that old app once before installing the release-signed APK; this removes the old app's local data. Updates from later workflow runs will use the saved signing key and can install over the previous release.
+## Important limitations in this first native port
+
+- Chat history is held in memory and is cleared when the host process is restarted.
+- This is a trusted local-network app, not an internet service. Anyone on the same reachable network can join; there is no password or encryption.
+- The chat uses lightweight polling (about every 1.5 seconds), not Socket.IO.
+- Very large uploads may be limited by available phone storage and memory.
+- The QR code and Font Awesome icons currently use CDN resources and therefore need internet access to load. The basic chat and upload server itself is local.
+
+## Requirements
+
+- Android Studio / Android SDK
+- JDK 17
+- Gradle wrapper included
+- Minimum Android version: Android 7.0 (API 24)

@@ -1,6 +1,7 @@
-node_modules/
-android/
-uploads/
-.env
-*.jks
-*.keystore
+/.gradle/
+/build/
+/app/build/
+/local.properties
+*.iml
+.idea/
+.DS_Store
