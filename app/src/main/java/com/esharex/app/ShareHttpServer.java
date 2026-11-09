@@ -127,25 +127,40 @@ public class ShareHttpServer extends NanoHTTPD {
         return json(arr);
     }
     private Response exportChat() throws Exception {
-        StringBuilder out = new StringBuilder("eShareX General Chat\\n");
-        for (JSONObject m : messages) out.append(new java.util.Date(m.optLong("timestamp"))).append("  ")
-            .append(m.optString("username")).append(": ").append(m.optString("text",m.optString("caption","[file]"))).append("\\n");
-        Response r = newFixedLengthResponse(Response.Status.OK,"text/plain; charset=utf-8",out.toString());
-        r.addHeader("Content-Disposition","attachment; filename=\\"esharex-chat.txt\\""); addCors(r); return r;
-    }
-    private Response exportDirectMessages(IHTTPSession session) throws Exception {
-        String me=session.getParms().get("me"), peer=session.getParms().get("peer");
-        if(me==null||peer==null)return jsonError(Response.Status.BAD_REQUEST,"me and peer are required");
-        StringBuilder out=new StringBuilder("eShareX Private Conversation\\n");
-        for(JSONObject m:directMessages) {
-            String from=m.optString("from"),to=m.optString("to");
-            if((from.equals(me)&&to.equals(peer))||(from.equals(peer)&&to.equals(me)))
-                out.append(new java.util.Date(m.optLong("timestamp"))).append("  ")
-                   .append(m.optString("fromName","Member")).append(": ").append(m.optString("text")).append("\\n");
+        StringBuilder out = new StringBuilder("eShareX General Chat\n");
+        for (JSONObject m : messages) {
+            out.append(new java.util.Date(m.optLong("timestamp"))).append("  ")
+                .append(m.optString("username")).append(": ")
+                .append(m.optString("text", m.optString("caption", "[file]"))).append("\n");
         }
-        Response r=newFixedLengthResponse(Response.Status.OK,"text/plain; charset=utf-8",out.toString());
-        r.addHeader("Content-Disposition","attachment; filename=\\"esharex-private-chat.txt\\"");addCors(r);return r;
+        Response r = newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", out.toString());
+        r.addHeader("Content-Disposition", "attachment; filename=\"esharex-chat.txt\"");
+        addCors(r);
+        return r;
     }
+
+    private Response exportDirectMessages(IHTTPSession session) throws Exception {
+        String me = session.getParms().get("me");
+        String peer = session.getParms().get("peer");
+        if (me == null || peer == null) {
+            return jsonError(Response.Status.BAD_REQUEST, "me and peer are required");
+        }
+        StringBuilder out = new StringBuilder("eShareX Private Conversation\n");
+        for (JSONObject m : directMessages) {
+            String from = m.optString("from");
+            String to = m.optString("to");
+            if ((from.equals(me) && to.equals(peer)) || (from.equals(peer) && to.equals(me))) {
+                out.append(new java.util.Date(m.optLong("timestamp"))).append("  ")
+                    .append(m.optString("fromName", "Member")).append(": ")
+                    .append(m.optString("text")).append("\n");
+            }
+        }
+        Response r = newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", out.toString());
+        r.addHeader("Content-Disposition", "attachment; filename=\"esharex-private-chat.txt\"");
+        addCors(r);
+        return r;
+    }
+
     private Response handleUpload(IHTTPSession session) throws Exception {
         Map<String,String> files = new HashMap<>(); session.parseBody(files);
         Map<String,List<String>> params=session.getParameters(); String temp=files.get("file");
@@ -173,7 +188,19 @@ public class ShareHttpServer extends NanoHTTPD {
     private void loadUsers(){try{if(usersFile.exists()){JSONArray a=new JSONArray(readFile(usersFile));for(int i=0;i<a.length();i++){JSONObject u=a.getJSONObject(i);users.put(u.getString("id"),u);}}}catch(Exception ignored){}}
     private void saveUsers(){JSONArray a=new JSONArray();for(JSONObject u:users.values())a.put(u);try(FileOutputStream o=new FileOutputStream(usersFile)){o.write(a.toString().getBytes("UTF-8"));}catch(Exception ignored){}}
     private String readFile(File f)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();try(InputStream in=new FileInputStream(f)){byte[]b=new byte[4096];int n;while((n=in.read(b))!=-1)o.write(b,0,n);}return o.toString("UTF-8");}
-    private Response serveUpload(String name)throws Exception{if(name.contains("/")||name.contains("\\\\")||name.contains(".."))return newFixedLengthResponse(Response.Status.BAD_REQUEST,MIME_PLAINTEXT,"Bad filename");File f=new File(uploadsDir,name);if(!f.isFile())return newFixedLengthResponse(Response.Status.NOT_FOUND,MIME_PLAINTEXT,"Not found");Response r=newFixedLengthResponse(Response.Status.OK,mimeFor(name),new FileInputStream(f),f.length());r.addHeader("Content-Disposition","inline; filename=\\""+name.replace("\\"","")+"\\"");addCors(r);return r;}
+    private Response serveUpload(String name) throws Exception {
+        if (name.contains("/") || name.contains("\\") || name.contains("..")) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Bad filename");
+        }
+        File f = new File(uploadsDir, name);
+        if (!f.isFile()) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found");
+        }
+        Response r = newFixedLengthResponse(Response.Status.OK, mimeFor(name), new FileInputStream(f), f.length());
+        r.addHeader("Content-Disposition", "inline; filename=\"" + name.replace("\"", "") + "\"");
+        addCors(r);
+        return r;
+    }
     private Response asset(String name,String mime)throws Exception{InputStream in=context.getAssets().open(name);Response r=newChunkedResponse(Response.Status.OK,mime,in);addCors(r);return r;}
     private Response json(Object v){Response r=newFixedLengthResponse(Response.Status.OK,"application/json; charset=utf-8",v.toString());addCors(r);return r;}
     private Response jsonError(Response.Status s,String m){
