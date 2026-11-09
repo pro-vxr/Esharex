@@ -1,0 +1,12 @@
+{
+  "name": "esharex-android-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "index.js",
+  "dependencies": {
+    "express": "4.21.1",
+    "multer": "1.4.5-lts.1",
+    "socket.io": "4.8.1"
+  }
+}
