@@ -13,8 +13,6 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.Inet4Address;
 import java.net.NetworkInterface;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -23,14 +21,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ShareHttpServer extends NanoHTTPD {
     private final Context context;
-    private final File dataDir;
     private final File uploadsDir;
     private final List<JSONObject> messages = new CopyOnWriteArrayList<>();
 
     public ShareHttpServer(Context context, File dataDir) {
         super("0.0.0.0", 8080);
         this.context = context.getApplicationContext();
-        this.dataDir = dataDir;
         this.uploadsDir = new File(dataDir, "uploads");
         if (!uploadsDir.exists()) uploadsDir.mkdirs();
     }

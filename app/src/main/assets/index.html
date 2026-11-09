@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <title>eShareX</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
     :root { --bg: #080808; --surface: #141414; --surface2: #1a1a1a; --accent: #C7C22A; --text: #F5F5F5; --border: #222; --text-dim: #888; --danger: #FF5A5A; }
@@ -105,6 +104,19 @@
     .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; width: 100%; max-width: 340px; text-align: center; }
     .modal h3 { font-size: 18px; margin-bottom: 8px; }
     .modal p { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; line-height: 1.5; }
+    .fas { font-style: normal; display: inline-block; min-width: 1em; text-align: center; }
+    .fa-wifi::before { content: "⌁"; }
+    .fa-ellipsis-v::before { content: "⋮"; }
+    .fa-qrcode::before { content: "▦"; }
+    .fa-share-alt::before { content: "↗"; }
+    .fa-sign-out-alt::before { content: "⇥"; }
+    .fa-times::before { content: "×"; }
+    .fa-paperclip::before { content: "＋"; }
+    .fa-paper-plane::before { content: "➤"; }
+    .fa-download::before { content: "↓"; }
+    .fa-reply::before { content: "↶"; }
+    .fa-copy::before { content: "▢"; }
+    .fa-file::before { content: "▤"; }
     .qr-container { background: #fff; padding: 16px; border-radius: 12px; display: inline-block; margin-bottom: 16px; }
     .ip-text { font-size: 18px; font-weight: bold; color: var(--accent); background: var(--surface2); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-family: monospace; user-select: all; }
 </style>
@@ -183,13 +195,13 @@
         <p>Scan the QR code or type this IP to join the room on another device.</p>
         <div class="qr-container" id="qrcode"></div>
         <div class="ip-text" id="ipDisplay">Loading...</div>
+        <button class="btn btn-primary" onclick="copyRoomAddress()">Copy address</button>
         <button class="btn btn-primary" onclick="closeIpModal()">Close</button>
     </div>
 </div>
 
 
 <script>
-    let socket;
     let myName = '';
     let currentFile = null;
     let replyTo = null;
@@ -269,7 +281,7 @@
         if (msg.username !== myName) content += `<span class="name">${escapeHtml(msg.username)}</span>`;
 
         if (msg.replyTo) {
-            content += `<div class="reply-quote"><strong>${escapeHtml(msg.replyTo.username)}</strong><br>${msg.replyTo.text || 'File'}</div>`;
+            content += `<div class="reply-quote"><strong>${escapeHtml(msg.replyTo.username)}</strong><br>${escapeHtml(msg.replyTo.text || (msg.replyTo.type === 'file' ? 'File' : ''))}</div>`;
         }
         
         if (msg.type === 'file') {
@@ -338,10 +350,15 @@
         return div.innerHTML;
     }
 
-    function copyText(text) {
+    async function copyText(text) {
         if (!text) return;
-        navigator.clipboard.writeText(text);
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
+            else { const field = document.createElement('textarea'); field.value = text; document.body.appendChild(field); field.select(); document.execCommand('copy'); field.remove(); }
+        } catch (_) { alert('Could not copy text.'); }
     }
+
+    function copyRoomAddress() { copyText(document.getElementById('ipDisplay').textContent); }
 
     function setupReply(msg) {
         replyTo = msg;
@@ -381,18 +398,17 @@
     async function sendFile() {
         if (!currentFile) return;
         const caption = document.getElementById('previewCaption').value.trim();
-
         const formData = new FormData();
-        formData.append('file', currentFile);
+        formData.append('file', currentFile, currentFile.name);
         formData.append('username', myName);
         formData.append('caption', caption);
         if (replyTo) formData.append('replyTo', JSON.stringify(replyTo));
-
-        const response = await fetch('/api/upload', { method: 'POST', body: formData });
-        if (!response.ok) { alert('File upload failed.'); return; }
-        
-        cancelFile();
-        cancelReply();
+        try {
+            const response = await fetch('/api/upload', { method: 'POST', body: formData });
+            if (!response.ok) throw new Error('Upload failed');
+            cancelFile();
+            cancelReply();
+        } catch (_) { alert('File upload failed. Check the host connection and available storage.'); }
     }
 
     msgInput.addEventListener('keypress', (e) => {
@@ -472,15 +488,16 @@
         document.getElementById('ipModal').classList.remove('show');
     }
 
-    function shareChat() {
+    async function shareChat() {
         dropdownMenu.classList.remove('show');
-        const text = "Join my eShareX room at: http://" + window.location.host;
-        if (navigator.share) {
-            navigator.share({ title: 'eShareX', text: text, url: window.location.href });
-        } else {
-            navigator.clipboard.writeText(text);
-            alert('Link copied to clipboard!');
-        }
+        try {
+            const response = await fetch('/api/server-info');
+            if (!response.ok) throw new Error('Server info unavailable');
+            const data = await response.json();
+            const text = 'Join my eShareX room at: ' + data.address;
+            if (navigator.share) await navigator.share({ title: 'eShareX', text, url: data.address });
+            else { await copyText(text); alert('Room address copied.'); }
+        } catch (_) { alert('Could not get the room address.'); }
     }
 
     function logout() {
