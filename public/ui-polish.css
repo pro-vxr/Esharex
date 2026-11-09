@@ -1,0 +1,49 @@
+/* eShareX UI refresh: spacing, touch targets, contrast and responsive layout */
+:root{--bg:#090a0b;--surface:#121416;--surface2:#1a1e21;--accent:#d4cf35;--text:#f5f6f7;--border:#282d31;--text-dim:#9aa1a7;--danger:#ff6868;--radius:18px}
+html,body{overscroll-behavior:none}
+body{background:radial-gradient(ellipse at 50% -20%,rgba(212,207,53,.09),transparent 55%),var(--bg);letter-spacing:.01em}
+.screen{padding:clamp(20px,5vw,32px)}
+#homeScreen{justify-content:center;gap:0}
+.logo{width:88px;height:88px;display:grid;place-items:center;border:1px solid rgba(212,207,53,.28);border-radius:28px;background:linear-gradient(145deg,#22251b,#111);font-size:38px;margin-bottom:26px;filter:drop-shadow(0 12px 28px rgba(0,0,0,.35))}
+h1{font-size:32px;letter-spacing:-1px;margin-bottom:10px}
+p.subtitle{max-width:290px;color:#a6adb2;margin-bottom:34px}
+.input-group{max-width:420px;margin-bottom:14px}
+.input-group label{font-size:10px;letter-spacing:1.4px;margin:0 0 9px 4px}
+.input-group input{min-height:54px;border-radius:14px;padding:15px 16px;background:#111416;border-color:#30363a}
+.btn{max-width:420px;min-height:54px;border-radius:15px;margin:8px 0 0;padding:15px 20px;letter-spacing:.01em}
+.btn-primary{background:linear-gradient(135deg,#e4df48,#c5c02b);box-shadow:0 8px 22px rgba(199,194,42,.13)}
+#chatScreen{padding:0;justify-content:flex-start}
+.header{padding:calc(13px + env(safe-area-inset-top)) 18px 13px;background:rgba(18,20,22,.97);border-bottom-color:#252a2e}
+.header-icon{width:42px;height:42px;box-shadow:0 0 0 5px rgba(212,207,53,.09)}
+.header h2{font-size:16px;letter-spacing:-.2px}
+.header span{margin-top:3px;font-size:11px;color:#c9c45a}
+.header button{min-width:44px;min-height:44px;background:#1b1f22;border:1px solid #2b3034;color:#e3e6e8}
+.menu{top:calc(66px + env(safe-area-inset-top));right:12px;min-width:230px;border-radius:15px;padding:7px;background:#171a1c;border-color:#30363a}
+.menu-item{min-height:46px;padding:12px 14px;border-radius:10px}
+.messages{padding:18px 15px 20px;gap:12px}
+.msg{max-width:min(86%,520px);padding:12px 15px;border-radius:18px;font-size:14px;line-height:1.5;box-shadow:0 3px 12px rgba(0,0,0,.12)}
+.msg.me{background:linear-gradient(135deg,#ded943,#c6c12b)}
+.msg.other{background:#191d20;border:1px solid #252b2f}
+.msg .name{font-size:11px;letter-spacing:.2px;margin-bottom:5px}
+.msg img,.msg video{max-height:280px;object-fit:contain}
+.msg-actions{gap:12px;margin-top:9px}
+.action-btn{min-width:30px;min-height:28px;font-size:13px}
+.reply-bar{padding:10px 15px 10px 13px;min-height:60px;border-left-width:3px}
+.reply-bar button{min-width:40px;min-height:40px}
+.input-area{gap:9px;padding:11px 12px calc(11px + env(safe-area-inset-bottom));background:rgba(18,20,22,.98)}
+.attach-btn,.send-btn{width:46px;height:46px;min-width:46px;min-height:46px;border-radius:15px}
+.attach-btn{background:#202528;border:1px solid #30373b;color:#c4c9cc}
+.send-btn{border-radius:15px;box-shadow:0 5px 15px rgba(199,194,42,.16)}
+#msgInput{min-height:46px;max-height:132px;border-radius:16px;padding:12px 15px;background:#0b0d0e;border-color:#2a3034;font-size:15px}
+#msgInput:focus{border-color:#bcb72c;box-shadow:0 0 0 3px rgba(199,194,42,.1)}
+.preview-overlay{padding:18px;background:rgba(5,6,7,.97)}
+.preview-caption{min-height:50px;border-radius:14px}
+.preview-actions{gap:10px;margin:12px auto 0}
+.preview-actions button{min-height:52px;border-radius:14px}
+.modal{border-radius:20px;padding:25px 21px;background:#171a1c;border-color:#30363a}
+.qr-container{margin:0 auto 16px}
+.ip-text{font-size:15px;overflow-wrap:anywhere}
+button,label,.menu-item{touch-action:manipulation}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(min-width:700px){.messages{padding-left:max(18px,calc((100vw - 760px)/2));padding-right:max(18px,calc((100vw - 760px)/2))}.input-area{padding-left:max(16px,calc((100vw - 760px)/2));padding-right:max(16px,calc((100vw - 760px)/2))}}
+@media(max-height:620px){.logo{width:58px;height:58px;border-radius:18px;font-size:26px;margin-bottom:12px}h1{font-size:25px}.screen{padding:14px}.subtitle{margin-bottom:18px!important}}
