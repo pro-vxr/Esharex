@@ -11,25 +11,62 @@
 @media(max-width:850px){.hero{grid-template-columns:1fr;min-height:auto;padding:38px 0}.hero-copy{text-align:center}.hero p{margin-inline:auto}.hero-card{max-width:480px;width:100%;margin:auto}.home-stats{justify-content:center}.chat-shell{grid-template-columns:1fr}.sidepanel{order:2}.messages{height:calc(100dvh - 300px);min-height:260px;padding:15px}.chat-panel{min-height:0}.bubble{max-width:88%}.layout{padding-top:18px}.nav{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}.nav a{text-align:center;padding:10px 5px}.topbar{height:62px}}
 @media(min-width:851px){.layout{padding-top:32px}.messages{height:calc(100vh - 330px);min-height:400px}.nav{margin-bottom:26px}}
 @media(max-width:480px){.hero h1{letter-spacing:-2.5px}.hero-card{padding:18px}.hero-art{height:155px}.pagehead{align-items:flex-start;flex-direction:column}.composer{padding:10px}.chathead{padding:13px}.msgrow .bubble{max-width:90%}.topbar{padding:0 14px}}
+
+/* eShareX refreshed responsive layout */
+.topbar{height:68px;padding:0 clamp(14px,3vw,34px)}.brand small{display:none}.brand{font-size:19px}
+.top-actions{gap:8px}.top-actions .share-action{display:grid;place-items:center}
+.layout{width:min(1180px,100%);padding-top:18px;padding-bottom:10px}
+.nav{display:flex;width:100%;margin:0 0 16px;padding:4px;gap:6px}
+.nav a{flex:1;text-align:center;text-decoration:none;color:var(--muted);padding:12px 8px;border-radius:12px;font-weight:750;font-size:14px}
+.nav a.active{background:var(--accent);color:#10170a}.page{display:none}.page.active{display:block}
+.hero{display:grid;grid-template-columns:1fr;gap:22px;min-height:0;padding:28px 0 8px}
+.hero-copy{text-align:center}.hero h1{font-size:clamp(42px,8vw,76px);line-height:.98;margin:18px 0}
+.hero p{margin:0 auto;max-width:680px}.home-stats{justify-content:center;margin:22px 0 0}
+.hero-card{max-width:700px;width:100%;margin:0 auto;padding:20px 24px 16px}
+.hero-art{height:100px;margin-bottom:12px}.hero-art svg{width:76px;height:76px}
+.field{margin:8px 0 12px}.field input{min-height:54px;font-size:17px}.joinrow .btn{min-height:58px;font-size:17px}
+.hero-card>p{margin-top:12px!important}.footer{padding:10px 16px 14px;margin-top:0}
+.pagehead{display:none}.chat-context{display:flex;align-items:center;gap:12px;padding:12px 2px 14px}
+.chat-context .context-icon{width:38px;height:38px;display:grid;place-items:center;background:var(--panel2);border-radius:12px;color:var(--accent);font-size:20px}
+.chat-context .context-title{flex:1;min-width:0}.chat-context strong{display:block;font-size:17px}
+.chat-context small{display:block;color:var(--muted);font-size:12px;margin-top:3px}.chat-context .iconbtn{flex:0 0 40px}
+.chat-shell{display:block}.chat-panel{min-height:0;height:calc(100dvh - 205px);height:calc(100svh - 205px);border-radius:18px;display:flex;overflow:hidden}
+.chathead{display:none}.messages{height:auto;min-height:0;flex:1;padding:16px clamp(10px,3vw,24px);gap:12px}
+.msgrow{width:100%;display:flex;flex-direction:column}.msgrow.mine{align-items:flex-end}.msgrow:not(.mine){align-items:flex-start}
+.bubble{max-width:min(78%,720px);padding:11px 14px;border-radius:18px;font-size:15px}.mine .bubble{border-bottom-right-radius:5px}
+.msg-actions{display:flex;gap:12px;padding:5px 8px 0;color:var(--muted)}
+.msg-actions button{border:0;background:transparent;color:inherit;padding:3px 5px;font-size:13px}
+.composer{padding-bottom:calc(10px + env(safe-area-inset-bottom));display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:10px;border-top:1px solid var(--line);background:#111720}
+.composer textarea{min-height:44px;max-height:120px;resize:none;flex:1 1 100%;width:100%;border-radius:14px;padding:11px 13px}
+.composer-tools{display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px}
+.tool-group{display:flex;align-items:center;gap:7px}.attach,.toolbtn{width:40px;height:40px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);color:var(--text);font-size:18px}
+.send{width:42px;height:42px;border-radius:13px}.chat-panel .composer{flex:0 0 auto}
+#onlineList,.sidepanel{display:none}.friends-grid{padding-bottom:16px}
+@media(max-width:600px){.topbar{height:62px}.layout{padding:12px 12px 4px}.hero{padding:20px 0 4px;gap:16px}
+.hero h1{font-size:43px;letter-spacing:-2px}.hero p{font-size:14px;line-height:1.55;padding:0 8px}
+.home-stats{gap:17px;margin-top:18px}.home-stats strong{font-size:18px}
+.hero-card{padding:14px 16px 12px;border-radius:22px}.hero-art{height:76px;margin-bottom:8px}.hero-art svg{width:64px;height:64px}
+.field{margin:6px 0 10px}.field label{font-size:10px}.field input{min-height:50px;padding:12px}
+.joinrow .btn{min-height:54px}.footer{font-size:10px;padding:8px 12px 10px}.nav{margin-bottom:8px}
+.nav a{padding:10px 5px;font-size:13px}.chat-panel,#dmPanel{height:calc(100dvh - 190px);height:calc(100svh - 190px)}
+.messages{padding:12px 8px}.bubble{max-width:84%;font-size:14px}}
 </style>
 </head>
 <body>
 <div class="app">
 <header class="topbar">
- <a class="brand" href="/" onclick="navigate(event,'/')"><span class="brandmark">eX</span><span>eShareX<small>LOCAL • CONNECTED</small></span></a>
- <div class="top-actions"><span id="connectionLabel" class="online-pill">Not connected</span><button class="iconbtn" aria-label="More options" onclick="toggleMenu()">⋮</button></div>
+ <a class="brand" href="/" onclick="navigate(event,'/')"><span class="brandmark">eX</span><span>eShareX</span></a>
+ <div class="top-actions"><button class="iconbtn share-action" aria-label="Share eShareX" onclick="shareApp()">↗</button><button class="iconbtn" aria-label="More options" onclick="toggleMenu()">⋮</button></div>
  <div class="menu" id="moreMenu">
   <button onclick="showServerInfo()">⌁ &nbsp; IP & server information</button>
-  <button onclick="exportChat()">⇩ &nbsp; Export general chat</button>
-  <button onclick="enableNotifications()">♧ &nbsp; Enable notifications</button>
+  <button onclick="exportChat()">⇩ &nbsp; Export conversation</button>
   <button onclick="installPWA()">＋ &nbsp; Install eShareX</button>
-  <button onclick="leaveRoom()">↪ &nbsp; Leave / switch user</button>
+  <button onclick="leaveRoom()">↪ &nbsp; Log out</button>
  </div>
 </header>
 <main class="layout">
 <nav class="nav">
- <a href="/" data-route="/" onclick="navigate(event,'/')">⌂ &nbsp; Home</a>
- <a href="/chat" data-route="/chat" onclick="navigate(event,'/chat')">▤ &nbsp; General chat</a>
+ <a href="/chat" data-route="/chat" onclick="if(currentPeer)closeDM();navigate(event,'/chat')">◉ &nbsp; Chat</a>
  <a href="/friends" data-route="/friends" onclick="navigate(event,'/friends')">♧ &nbsp; Friends</a>
 </nav>
 <section class="page" id="homePage">
@@ -39,14 +76,30 @@
  </div>
 </section>
 <section class="page" id="chatPage">
- <div class="pagehead"><div><div class="eyebrow">Community room</div><h1>General chat</h1><p>Messages shared with everyone in this eShareX room.</p></div><span class="online-pill" id="chatOnline">0 online</span></div>
- <div class="chat-shell"><div class="panel chat-panel"><div class="chathead"><strong>◉ &nbsp; eShareX Lounge</strong><span class="online-pill">Everyone</span></div><div class="messages" id="generalMessages"><div class="empty">Join the network to load messages.</div></div><div class="composer"><input type="file" id="fileInput" hidden><button class="attach" onclick="document.getElementById('fileInput').click()" title="Attach file">＋</button><textarea id="generalInput" rows="1" placeholder="Write a message…"></textarea><button class="send" onclick="sendGeneral()">➤</button></div></div><aside class="panel sidepanel"><h3>People online</h3><div id="onlineList"><div class="empty">Join to see people here.</div></div><button class="btn secondary" style="width:100%;margin-top:14px" onclick="go('/friends')">View friends</button></aside></div>
+ <div class="chat-context">
+  <span class="context-icon">◉</span>
+  <div class="context-title"><strong id="conversationName">General chat</strong><small id="chatOnline">0 online</small></div>
+  <button class="iconbtn" aria-label="Conversation options" onclick="toggleMenu()">⋮</button>
+ </div>
+ <div class="chat-shell"><div class="panel chat-panel">
+  <div class="messages" id="generalMessages"><div class="empty">Join the network to load messages.</div></div>
+  <div class="composer">
+   <input type="file" id="fileInput" hidden>
+   <input type="file" id="cameraInput" accept="image/*,video/*" capture="environment" hidden>
+   <textarea id="generalInput" rows="1" placeholder="Type a message..."></textarea>
+   <div class="composer-tools"><div class="tool-group">
+    <button class="toolbtn" onclick="document.getElementById('fileInput').click()" title="Attach file">＋</button>
+    <button class="toolbtn" onclick="document.getElementById('cameraInput').click()" title="Camera">◎</button>
+    <button class="toolbtn" id="recordButton" onclick="toggleRecording()" title="Record voice">🎙</button>
+   </div><button class="send" onclick="sendGeneral()" aria-label="Send message">➤</button></div>
+  </div>
+ </div><aside class="panel sidepanel"><h3>People online</h3><div id="onlineList"></div></aside></div>
+<div id="dmPanel" class="panel chat-panel" style="display:none"><div class="chathead"><strong id="dmTitle">Private conversation</strong><div><button class="btn secondary" style="padding:8px 10px" onclick="exportDM()">Export</button> <button class="iconbtn" onclick="closeDM()">×</button></div></div><div class="messages" id="dmMessages"></div><div class="composer"><textarea id="dmInput" rows="1" placeholder="Type a message..."></textarea><div class="composer-tools"><div class="tool-group"><button class="toolbtn" onclick="document.getElementById('fileInput').click()">＋</button><button class="toolbtn" onclick="document.getElementById('cameraInput').click()">◎</button><button class="toolbtn" onclick="toggleRecording()">🎙</button></div><button class="send" onclick="sendDM()">➤</button></div></div></div>
 </section>
 <section class="page" id="friendsPage">
- <div class="pagehead"><div><div class="eyebrow">Your local circle</div><h1>Friends</h1><p>People who have joined this eShareX room.</p></div><span class="online-pill" id="friendsOnline">0 online</span></div>
+ <div class="chat-context"><span class="context-icon">♧</span><div class="context-title"><strong>Friends</strong><small id="friendsOnline">0 online</small></div><button class="iconbtn" onclick="toggleMenu()">⋮</button></div>
  <div class="friends-grid" id="friendsGrid"><div class="panel empty">Join eShareX to discover people.</div></div>
- <div id="dmPanel" class="panel chat-panel" style="display:none;margin-top:20px"><div class="chathead"><strong id="dmTitle">Private conversation</strong><div><button class="btn secondary" style="padding:8px 10px" onclick="exportDM()">Export</button> <button class="iconbtn" onclick="closeDM()">×</button></div></div><div class="messages" id="dmMessages"></div><div class="composer"><textarea id="dmInput" rows="1" placeholder="Message privately…"></textarea><button class="send" onclick="sendDM()">➤</button></div></div>
-</section>
+ </section>
 </main>
 <footer class="footer">eShareX • Built for sharing on your local network</footer>
 </div>
@@ -63,34 +116,72 @@ let currentPeer=null,seenGeneral=new Set(),seenDM=new Set(),poller=null,heartbea
 const isNative=/Android/i.test(navigator.userAgent)&&location.hostname==='127.0.0.1';
 if(myName)$('joinName').value=myName;
 if(!isNative)document.body.classList.add('web-mode');
-function route(){let p=location.pathname;if(!['/','/chat','/friends'].includes(p))p='/';document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));({ '/':'homePage','/chat':'chatPage','/friends':'friendsPage'}[p]&&$( {'/':'homePage','/chat':'chatPage','/friends':'friendsPage'}[p]).classList.add('active'));document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.route===p));$('moreMenu').classList.remove('show');if(p==='/chat'&&myName){loadGeneral();loadPeople()}if(p==='/friends'&&myName)loadPeople();}
-function navigate(e,p){if(e)e.preventDefault();history.pushState({},'',p);route()}function go(p){history.pushState({},'',p);route()}window.addEventListener('popstate',route);
+function route(){let p=location.pathname;if(!['/','/chat','/friends'].includes(p))p='/';if(myName&&p==='/'){history.replaceState({},'','/chat');p='/chat'}if(!myName&&p!=='/'){history.replaceState({},'','/');p='/'}document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));const ids={'/':'homePage','/chat':'chatPage','/friends':'friendsPage'};$(ids[p]).classList.add('active');document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.route===p));$('moreMenu').classList.remove('show');document.querySelector('.nav').style.display=p==='/'?'none':'flex';document.querySelector('.footer').style.display=p==='/'?'block':'none';if(p==='/chat'&&myName){if(!currentPeer){$('dmPanel').style.display='none';document.querySelector('.chat-shell').style.display='block';$('conversationName').textContent='General chat'}loadGeneral();loadPeople()}if(p==='/friends'&&myName)loadPeople();}
+function navigate(e,p){if(e)e.preventDefault();if(!myName&&p!=='/')return toast('Join eShareX first');history.pushState({},'',p);route()}function go(p){history.pushState({},'',p);route()}window.addEventListener('popstate',route);
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2300)}
 async function api(url,opts={}){const r=await fetch(url,opts);if(!r.ok)throw new Error((await r.text())||r.statusText);return r.json()}
-async function joinNetwork(){myName=$('joinName').value.trim();if(!myName)return toast('Choose a display name first');localStorage.setItem('esharex_name',myName);try{await api('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId,name:myName})});$('connectionLabel').textContent='Connected';if(isNative){try{const s=await api('/api/server-info');$('ipUnder').textContent=s.address;$('ipUnder').style.display='block'}catch(_){}}go('/chat');startPresence();toast('Welcome to eShareX, '+myName)}catch(e){toast('Could not join. Make sure you are connected to the host network.');}}
+async function joinNetwork(){myName=$('joinName').value.trim();if(!myName)return toast('Choose a display name first');requestNotificationPermission();localStorage.setItem('esharex_name',myName);try{await api('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId,name:myName})});if(isNative){try{const s=await api('/api/server-info');$('ipUnder').textContent=s.address;$('ipUnder').style.display='block'}catch(_){}}go('/chat');startPresence();toast('Welcome to eShareX, '+myName)}catch(e){toast('Could not join. Make sure you are connected to the host network.');}}
 function startPresence(){if(poller)clearInterval(poller);if(heartbeat)clearInterval(heartbeat);heartbeat=setInterval(()=>api('/api/presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId})}).catch(()=>{}),15000);poller=setInterval(()=>{if(location.pathname==='/chat')loadGeneral();if(location.pathname==='/friends')loadPeople();if(currentPeer)loadDM()},2500);api('/api/presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId})}).catch(()=>{});}
-function renderMessage(m,container,mine){let row=document.createElement('div');row.className='msgrow'+(mine?' mine':'');let b=document.createElement('div');b.className='bubble';if(!mine){let n=document.createElement('div');n.className='msgname';n.textContent=m.username||m.fromName||'Member';b.appendChild(n)}if(m.replyTo){let q=document.createElement('div');q.textContent='↳ '+(m.replyTo.text||'Attachment');q.style.cssText='font-size:11px;opacity:.7;border-left:2px solid currentColor;padding-left:8px;margin-bottom:8px';b.appendChild(q)}if(m.type==='file'){if((m.mime||'').startsWith('image/')){let im=document.createElement('img');im.src=m.url;im.alt=m.filename||'Shared image';im.onclick=()=>openMedia('img',m.url);b.appendChild(im)}else if((m.mime||'').startsWith('video/')){let v=document.createElement('video');v.src=m.url;v.controls=true;v.preload='metadata';v.onclick=e=>e.stopPropagation();b.appendChild(v)}else{let a=document.createElement('a');a.className='filecard';a.href=m.url;a.target='_blank';a.download=m.filename||'';a.innerHTML='<span class="fileicon">▤</span><span></span>';a.querySelector('span:last-child').textContent=m.filename||'Download file';b.appendChild(a)}if(m.caption){let c=document.createElement('div');c.textContent=m.caption;b.appendChild(c)}}else{let t=document.createElement('div');t.textContent=m.text||'';b.appendChild(t)}let tm=document.createElement('div');tm.className='msgtime';tm.textContent=new Date(m.timestamp||Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});b.appendChild(tm);row.appendChild(b);container.appendChild(row)}
-async function loadGeneral(){if(!myName)return;try{let data=await api('/api/messages');let box=$('generalMessages');if(!data.length&&!box.children.length)box.innerHTML='<div class="empty">No messages yet. Start the conversation.</div>';data.forEach(m=>{if(!seenGeneral.has(m.id)){if(box.querySelector('.empty'))box.innerHTML='';seenGeneral.add(m.id);renderMessage(m,box,m.userId===deviceId||m.username===myName);if(m.userId!==deviceId&&document.hidden&&'Notification'in window&&Notification.permission==='granted')new Notification('eShareX · '+(m.username||'New message'),{body:m.text||m.caption||'Shared a file'})}});box.scrollTop=box.scrollHeight}catch(_){}}
-async function sendGeneral(){let text=$('generalInput').value.trim();if(!text)return;try{await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,userId:deviceId,username:myName})});$('generalInput').value='';loadGeneral()}catch(_){toast('Message could not be sent')}}
+let replyTarget=null,mediaRecorder=null,recordedChunks=[];
+function renderMessage(m,container,mine){
+ let row=document.createElement('div');row.className='msgrow'+(mine?' mine':'');row.dataset.messageId=m.id||'';
+ let b=document.createElement('div');b.className='bubble';
+ if(!mine){let n=document.createElement('div');n.className='msgname';n.textContent=m.username||m.fromName||'Member';b.appendChild(n)}
+ if(m.replyTo){let q=document.createElement('div');q.textContent='↳ '+(m.replyTo.text||'Attachment');q.style.cssText='font-size:11px;opacity:.7;border-left:2px solid currentColor;padding-left:8px;margin-bottom:8px';b.appendChild(q)}
+ if(m.type==='file'){
+  if((m.mime||'').startsWith('image/')){let im=document.createElement('img');im.src=m.url;im.alt=m.filename||'Shared image';im.onclick=()=>openMedia('img',m.url);b.appendChild(im)}
+  else if((m.mime||'').startsWith('video/')){let v=document.createElement('video');v.src=m.url;v.controls=true;v.preload='metadata';v.onclick=e=>e.stopPropagation();b.appendChild(v)}
+  else{let link=document.createElement('a');link.className='filecard';link.href=m.url;link.target='_blank';link.download=m.filename||'';link.textContent='▤  '+(m.filename||'Download file');b.appendChild(link)}
+  if(m.caption){let c=document.createElement('div');c.textContent=m.caption;b.appendChild(c)}
+ }else{let t=document.createElement('div');t.textContent=m.text||'';b.appendChild(t)}
+ let tm=document.createElement('div');tm.className='msgtime';tm.textContent=new Date(m.timestamp||Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});b.appendChild(tm);
+ row.appendChild(b);
+ let actions=document.createElement('div');actions.className='msg-actions';
+ let copy=document.createElement('button');copy.title='Copy';copy.textContent='▢';copy.onclick=()=>navigator.clipboard?.writeText(m.text||m.caption||m.filename||'').then(()=>toast('Copied')).catch(()=>toast('Copy unavailable'));
+ let reply=document.createElement('button');reply.title='Reply';reply.textContent='↩';reply.onclick=()=>setReplyTarget(m);
+ actions.append(copy,reply);
+ if(mine){let edit=document.createElement('button');edit.title='Edit';edit.textContent='✎';edit.onclick=()=>editMessage(m);actions.append(edit)}
+ row.appendChild(actions);
+ let touchX=0;row.addEventListener('touchstart',e=>{touchX=e.changedTouches[0].clientX},{passive:true});
+ row.addEventListener('touchend',e=>{let dx=e.changedTouches[0].clientX-touchX;if(dx>65)setReplyTarget(m)},{passive:true});
+ container.appendChild(row)
+}
+function setReplyTarget(m){replyTarget=m;let input=location.pathname==='/friends'&&currentPeer?$('dmInput'):$('generalInput');input.placeholder='Replying to '+(m.username||m.fromName||'message')+' — type a message';input.focus();toast('Reply selected')}
+async function editMessage(m){let updated=prompt('Edit your message',m.text||'');if(updated===null||!updated.trim())return;try{let isDM=!!m.from;await api(isDM?'/api/dm/edit':'/api/chat/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(isDM?{id:m.id,from:deviceId,text:updated.trim()}:{id:m.id,userId:deviceId,text:updated.trim()})});if(isDM){seenDM.clear();$('dmMessages').innerHTML='';loadDM()}else{seenGeneral.clear();$('generalMessages').innerHTML='';loadGeneral()}}catch(_){toast('Could not edit message')}}
+async function loadGeneral(){if(!myName)return;try{let data=await api('/api/messages');let box=$('generalMessages');if(!data.length&&!box.children.length)box.innerHTML='<div class="empty">No messages yet. Start the conversation.</div>';data.forEach(m=>{if(!seenGeneral.has(m.id)){if(box.querySelector('.empty'))box.innerHTML='';seenGeneral.add(m.id);renderMessage(m,box,m.userId===deviceId||m.username===myName);if(m.userId!==deviceId&&document.hidden){let title='eShareX · '+(m.username||'New message'),body=m.text||m.caption||'Shared a file';if(isNative&&window.AndroidBridge)window.AndroidBridge.showNotification(title,body);else if('Notification'in window&&Notification.permission==='granted')new Notification(title,{body})}}});box.scrollTop=box.scrollHeight}catch(_){}}
+async function sendGeneral(){let text=$('generalInput').value;if(!text.trim())return;try{await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,userId:deviceId,username:myName,replyTo:replyTarget?{text:replyTarget.text||replyTarget.caption||replyTarget.filename||'Attachment'}:null})});$('generalInput').value='';$('generalInput').placeholder='Type a message...';replyTarget=null;loadGeneral()}catch(_){toast('Message could not be sent')}}
 async function loadPeople(){if(!myName)return;try{let users=await api('/api/users?id='+encodeURIComponent(deviceId));let online=users.filter(u=>u.online);$('memberCount').textContent=users.length;$('chatOnline').textContent=online.length+' online';$('friendsOnline').textContent=online.length+' online';let others=users.filter(u=>u.id!==deviceId);$('onlineList').innerHTML='';$('friendsGrid').innerHTML='';if(!others.length)$('friendsGrid').innerHTML='<div class="panel empty">You are the first one here. Invite someone to join your network.</div>';others.forEach(u=>{let row=document.createElement('div');row.className='person';row.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><span class="dot"></span>';row.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();row.querySelector('strong').textContent=u.name;row.querySelector('small').textContent=u.online?'Online':'Offline';row.querySelector('.dot').classList.toggle('on',u.online);$('onlineList').appendChild(row);let card=document.createElement('div');card.className='panel friend-card';card.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><button class="btn">Message</button>';card.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();card.querySelector('strong').textContent=u.name;card.querySelector('small').textContent=u.online?'● Online':'○ Offline';card.querySelector('small').style.color=u.online?'var(--accent)':'var(--muted)';card.querySelector('button').onclick=()=>openDM(u);$('friendsGrid').appendChild(card)})}catch(_){}}
-function openDM(u){currentPeer=u;$('dmPanel').style.display='flex';$('dmTitle').textContent='Private chat · '+u.name;seenDM.clear();loadDM();$('dmInput').focus()}
-function closeDM(){currentPeer=null;$('dmPanel').style.display='none'}
+function openDM(u){currentPeer=u;go('/chat');$('chat-shell')?.style.setProperty('display','none');document.querySelector('.chat-shell').style.display='none';$('dmPanel').style.display='flex';$('conversationName').textContent=u.name;$('chatOnline').textContent=u.online?'Online':'Offline';seenDM.clear();loadDM();$('dmInput').focus()}
+function closeDM(){currentPeer=null;$('dmPanel').style.display='none';document.querySelector('.chat-shell').style.display='block';$('conversationName').textContent='General chat';loadGeneral()}
 function exportDM(){if(currentPeer)location.href='/api/export/dm?me='+encodeURIComponent(deviceId)+'&peer='+encodeURIComponent(currentPeer.id)}
-async function loadDM(){if(!currentPeer)return;try{let arr=await api('/api/dm?me='+encodeURIComponent(deviceId)+'&peer='+encodeURIComponent(currentPeer.id));let box=$('dmMessages');arr.forEach(m=>{if(!seenDM.has(m.id)){seenDM.add(m.id);renderMessage({username:m.from===deviceId?'You':m.fromName,text:m.text,timestamp:m.timestamp},box,m.from===deviceId)}});box.scrollTop=box.scrollHeight}catch(_){}}
-async function sendDM(){let text=$('dmInput').value.trim();if(!text||!currentPeer)return;try{await api('/api/dm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from:deviceId,to:currentPeer.id,text})});$('dmInput').value='';loadDM()}catch(_){toast('Private message could not be sent')}}
+async function loadDM(){if(!currentPeer)return;try{let arr=await api('/api/dm?me='+encodeURIComponent(deviceId)+'&peer='+encodeURIComponent(currentPeer.id));let box=$('dmMessages');arr.forEach(m=>{if(!seenDM.has(m.id)){seenDM.add(m.id);renderMessage({...m,username:m.from===deviceId?'You':m.fromName,userId:m.from,text:m.text,timestamp:m.timestamp},box,m.from===deviceId);if(m.from!==deviceId&&document.hidden){let title='eShareX · '+(m.fromName||'Private message'),body=m.text||m.caption||'Shared a file';if(isNative&&window.AndroidBridge)window.AndroidBridge.showNotification(title,body);else if('Notification'in window&&Notification.permission==='granted')new Notification(title,{body})}}});box.scrollTop=box.scrollHeight}catch(_){}}
+async function sendDM(){let text=$('dmInput').value.trim();if(!text||!currentPeer)return;try{await api('/api/dm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from:deviceId,to:currentPeer.id,text,replyTo:replyTarget?{text:replyTarget.text||replyTarget.caption||replyTarget.filename||'Attachment'}:null})});$('dmInput').value='';$('dmInput').placeholder='Type a message...';replyTarget=null;loadDM()}catch(_){toast('Private message could not be sent')}}
 function toggleMenu(){$('moreMenu').classList.toggle('show')}
 async function showServerInfo(){try{let s=await api('/api/server-info');serverAddress=s.address;$('serverAddress').textContent=s.address;$('infoModal').classList.add('show')}catch(_){toast('Server information unavailable')}}
 function hideInfo(){$('infoModal').classList.remove('show')}async function copyAddress(){try{await navigator.clipboard.writeText(serverAddress);toast('Address copied')}catch(_){toast(serverAddress)}}
-function exportChat(){location.href='/api/export/chat';$('moreMenu').classList.remove('show')}
-async function enableNotifications(){if(!('Notification'in window))return toast('Notifications are not supported here');let p=await Notification.requestPermission();toast(p==='granted'?'Notifications enabled':'Notification permission not granted')}
-function leaveRoom(){localStorage.removeItem('esharex_name');myName='';if(poller)clearInterval(poller);if(heartbeat)clearInterval(heartbeat);closeDM();$('connectionLabel').textContent='Not connected';go('/')}
+function exportChat(){if(currentPeer)exportDM();else location.href='/api/export/chat';$('moreMenu').classList.remove('show')}
+async function requestNotificationPermission(){try{if(isNative&&window.AndroidBridge){window.AndroidBridge.requestNotifications();return}if('Notification'in window&&Notification.permission==='default')await Notification.requestPermission()}catch(_){}}
+async function shareApp(){let url=location.origin+'/';try{if(navigator.share)await navigator.share({title:'eShareX',text:'Join me on eShareX local sharing',url});else{await navigator.clipboard.writeText(url);toast('Share link copied')}}catch(_){}}
+async function enableNotifications(){return requestNotificationPermission()}
+function leaveRoom(){localStorage.removeItem('esharex_name');myName='';if(poller)clearInterval(poller);if(heartbeat)clearInterval(heartbeat);closeDM();go('/')}
 let deferredInstall=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e});async function installPWA(){if(deferredInstall){deferredInstall.prompt();deferredInstall=null}else toast('Use your browser menu → Install app / Add to Home screen')}
 function openMedia(type,url){$('mediaContent').innerHTML='';let el=document.createElement(type);el.src=url;if(type==='video')el.controls=true;$('mediaContent').appendChild(el);$('mediaModal').classList.add('show')}
-$('fileInput').addEventListener('change',async e=>{let f=e.target.files[0];if(!f)return;let cap=prompt('Add a caption (optional):')||'';let fd=new FormData();fd.append('file',f,f.name);fd.append('username',myName);fd.append('userId',deviceId);fd.append('caption',cap);try{await fetch('/api/upload',{method:'POST',body:fd});loadGeneral()}catch(_){toast('Upload failed')}e.target.value=''});
-$('generalInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendGeneral()}});
-$('dmInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendDM()}});
+async function toggleRecording(){
+ if(mediaRecorder&&mediaRecorder.state==='recording'){mediaRecorder.stop();$('recordButton').textContent='🎙';return}
+ if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder)return toast('Voice recording is not supported in this browser');
+ try{let stream=await navigator.mediaDevices.getUserMedia({audio:true});recordedChunks=[];mediaRecorder=new MediaRecorder(stream);
+ mediaRecorder.ondataavailable=e=>{if(e.data.size)recordedChunks.push(e.data)};
+ mediaRecorder.onstop=async()=>{let blob=new Blob(recordedChunks,{type:mediaRecorder.mimeType||'audio/webm'});stream.getTracks().forEach(t=>t.stop());let file=new File([blob],'voice-message.webm',{type:blob.type});await uploadSelectedFile(file)};
+ mediaRecorder.start();$('recordButton').textContent='■';toast('Recording voice message…')
+ }catch(_){toast('Microphone permission was not granted')}
+}
+$('fileInput').addEventListener('change',e=>{let f=e.target.files[0];if(f)uploadSelectedFile(f);e.target.value=''});
+$('cameraInput').addEventListener('change',e=>{let f=e.target.files[0];if(f)uploadSelectedFile(f);e.target.value=''});
+async function uploadSelectedFile(f){if(!f)return;let cap=prompt('Add a caption (optional):')||'';let fd=new FormData();fd.append('file',f,f.name);fd.append('username',myName);fd.append('userId',deviceId);fd.append('caption',cap);if(currentPeer){fd.append('from',deviceId);fd.append('to',currentPeer.id)}if(replyTarget)fd.append('replyTo',JSON.stringify({text:replyTarget.text||replyTarget.caption||replyTarget.filename||'Attachment'}));replyTarget=null;try{await fetch('/api/upload',{method:'POST',body:fd});if(currentPeer)loadDM();else loadGeneral()}catch(_){toast('Upload failed')}}
+$('generalInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'});
+$('dmInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'});
 document.addEventListener('click',e=>{if(!e.target.closest('.top-actions')&&!e.target.closest('.menu'))$('moreMenu').classList.remove('show')});
 if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('/sw.js').catch(()=>{});
-if(myName){startPresence();$('connectionLabel').textContent='Connected'}route();
+if(myName){startPresence()}route();
 </script>
 </body></html>

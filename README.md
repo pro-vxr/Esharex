@@ -69,3 +69,16 @@ This is a local-network collaboration app, not an internet-facing secure messeng
 - Compile SDK: 34.
 - Java: 17.
 - HTTP server port: 8080.
+
+
+## Version 2.1.0 UI and messaging update
+
+- Simplified the shared header and reduced primary navigation to Chat and Friends.
+- The joined session stays on Chat when browser Back is used; the landing page is shown again after logout.
+- Reworked the join card and moved the landing footer closer to the content.
+- Chat and Friends now share the same navigation/header placement.
+- Added a conversation context header, full-width responsive chat layout, multiline composer, file/camera/voice controls, message copy/reply/edit actions, and swipe-right reply.
+- Added general-chat message editing and private-chat file uploads.
+- Added an Android 13+ notification permission request after the user chooses Join, without a separate in-app permission button.
+
+The app is intended for trusted local networks. Messages and uploaded files are not end-to-end encrypted.

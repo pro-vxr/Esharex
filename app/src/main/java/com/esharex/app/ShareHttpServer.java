@@ -37,7 +37,7 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.0"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.1"));
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
                 return json(new JSONObject().put("ip", ip).put("port", 8080).put("address", "http://" + ip + ":8080"));
@@ -47,7 +47,9 @@ public class ShareHttpServer extends NanoHTTPD {
             if ("/api/presence".equals(uri) && Method.POST.equals(method)) return heartbeat(session);
             if ("/api/messages".equals(uri) && Method.GET.equals(method)) return json(arrayCopy(messages));
             if ("/api/chat".equals(uri) && Method.POST.equals(method)) return handleChat(session);
+            if ("/api/chat/edit".equals(uri) && Method.POST.equals(method)) return editChatMessage(session);
             if ("/api/dm".equals(uri) && Method.GET.equals(method)) return listDirectMessages(session);
+            if ("/api/dm/edit".equals(uri) && Method.POST.equals(method)) return editDirectMessage(session);
             if ("/api/dm".equals(uri) && Method.POST.equals(method)) return sendDirectMessage(session);
             if ("/api/export/chat".equals(uri) && Method.GET.equals(method)) return exportChat();
             if ("/api/export/dm".equals(uri) && Method.GET.equals(method)) return exportDirectMessages(session);
@@ -105,6 +107,25 @@ public class ShareHttpServer extends NanoHTTPD {
             .put("timestamp",System.currentTimeMillis());
         addMessage(msg); return json(new JSONObject().put("success",true).put("message",msg));
     }
+
+    private Response editChatMessage(IHTTPSession session) throws Exception {
+        JSONObject in = readBody(session);
+        String id = in.optString("id", "");
+        String userId = in.optString("userId", "");
+        String text = safeText(in.optString("text", ""), 4000);
+        if (id.isEmpty() || userId.isEmpty() || text.trim().isEmpty())
+            return jsonError(Response.Status.BAD_REQUEST, "Message ID and text are required");
+        for (JSONObject msg : messages) {
+            if (id.equals(msg.optString("id")) && userId.equals(msg.optString("userId"))) {
+                msg.put("text", text);
+                msg.put("edited", true);
+                msg.put("editedAt", System.currentTimeMillis());
+                saveArray(messagesFile, messages);
+                return json(new JSONObject().put("success", true).put("message", msg));
+            }
+        }
+        return jsonError(Response.Status.NOT_FOUND, "Message not found or not yours");
+    }
     private Response sendDirectMessage(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session);
         String from = in.optString("from",""), to = in.optString("to",""), text = safeText(in.optString("text",""),4000);
@@ -113,6 +134,7 @@ public class ShareHttpServer extends NanoHTTPD {
         if (sender == null || recipient == null) return jsonError(Response.Status.NOT_FOUND,"User not found");
         JSONObject msg = new JSONObject().put("id",UUID.randomUUID().toString()).put("from",from).put("to",to)
             .put("fromName",sender.optString("name","User")).put("text",text).put("timestamp",System.currentTimeMillis());
+        if (in.opt("replyTo") instanceof JSONObject) msg.put("replyTo", in.opt("replyTo"));
         directMessages.add(msg); trim(directMessages,1000); saveArray(dmFile,directMessages);
         return json(new JSONObject().put("success",true).put("message",msg));
     }
@@ -126,6 +148,26 @@ public class ShareHttpServer extends NanoHTTPD {
         }
         return json(arr);
     }
+
+    private Response editDirectMessage(IHTTPSession session) throws Exception {
+        JSONObject in = readBody(session);
+        String id = in.optString("id", "");
+        String from = in.optString("from", "");
+        String text = safeText(in.optString("text", ""), 4000);
+        if (id.isEmpty() || from.isEmpty() || text.trim().isEmpty())
+            return jsonError(Response.Status.BAD_REQUEST, "Message ID and text are required");
+        for (JSONObject msg : directMessages) {
+            if (id.equals(msg.optString("id")) && from.equals(msg.optString("from"))) {
+                msg.put("text", text);
+                msg.put("edited", true);
+                msg.put("editedAt", System.currentTimeMillis());
+                saveArray(dmFile, directMessages);
+                return json(new JSONObject().put("success", true).put("message", msg));
+            }
+        }
+        return jsonError(Response.Status.NOT_FOUND, "Message not found or not yours");
+    }
+
     private Response exportChat() throws Exception {
         StringBuilder out = new StringBuilder("eShareX General Chat\n");
         for (JSONObject m : messages) {
@@ -176,7 +218,14 @@ public class ShareHttpServer extends NanoHTTPD {
             .put("userId",safeText(first(params,"userId"),80)).put("caption",safeText(first(params,"caption"),500))
             .put("timestamp",System.currentTimeMillis());
         String reply=first(params,"replyTo"); if(reply!=null)try{msg.put("replyTo",new JSONObject(reply));}catch(Exception ignored){}
-        addMessage(msg); return json(new JSONObject().put("success",true).put("message",msg));
+        String to=first(params,"to"), from=first(params,"from");
+        if(to!=null && from!=null) {
+            JSONObject sender=users.get(from), recipient=users.get(to);
+            if(sender==null||recipient==null)return jsonError(Response.Status.NOT_FOUND,"Private chat user not found");
+            msg.put("from",from).put("to",to).put("fromName",sender.optString("name","User"));
+            directMessages.add(msg);trim(directMessages,1000);saveArray(dmFile,directMessages);
+        } else addMessage(msg);
+        return json(new JSONObject().put("success",true).put("message",msg));
     }
     private void addMessage(JSONObject msg){messages.add(msg);trim(messages,500);saveArray(messagesFile,messages);}
     private void trim(List<JSONObject> list,int max){while(list.size()>max)list.remove(0);}

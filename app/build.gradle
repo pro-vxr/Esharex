@@ -9,9 +9,9 @@ android {
     defaultConfig {
         applicationId 'com.esharex.app'
         minSdk 24
-        targetSdk 28
-        versionCode 3
-        versionName '2.0.0'
+        targetSdk 33
+        versionCode 4
+        versionName '2.1.0'
     }
 
     compileOptions {

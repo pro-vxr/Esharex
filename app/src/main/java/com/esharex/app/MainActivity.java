@@ -8,6 +8,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.JavascriptInterface;
+import android.os.Build;
+import android.content.pm.PackageManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -54,6 +57,7 @@ public class MainActivity extends Activity {
                 }
             }
         });
+        webView.addJavascriptInterface(new NotificationBridge(), "AndroidBridge");
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
@@ -74,6 +78,35 @@ public class MainActivity extends Activity {
         });
         setContentView(webView);
         waitForServerAndLoad();
+    }
+
+
+    private class NotificationBridge {
+        @JavascriptInterface
+        public void requestNotifications() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 33 &&
+                    checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 5201);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void showNotification(String title, String body) {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 33 &&
+                    checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) return;
+                android.app.Notification notification = new androidx.core.app.NotificationCompat.Builder(MainActivity.this, "esharex_host")
+                    .setSmallIcon(android.R.drawable.stat_sys_upload_done)
+                    .setContentTitle(title == null ? "eShareX" : title)
+                    .setContentText(body == null ? "New message" : body)
+                    .setAutoCancel(true)
+                    .build();
+                android.app.NotificationManager manager = (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                manager.notify((int) (System.currentTimeMillis() & 0x7fffffff), notification);
+            });
+        }
     }
 
     private void waitForServerAndLoad() {
