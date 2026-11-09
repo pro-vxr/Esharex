@@ -38,14 +38,37 @@ jobs:
     - name: Sync Capacitor
       run: npx cap sync android
 
-    - name: Build APK
+    - name: Require the persistent Android signing key
+      env:
+        ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      run: |
+        test -n "$ANDROID_KEYSTORE_BASE64" || { echo "Missing GitHub Actions secret ANDROID_KEYSTORE_BASE64"; exit 1; }
+        test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "Missing GitHub Actions secret ANDROID_KEYSTORE_PASSWORD"; exit 1; }
+        test -n "$ANDROID_KEY_ALIAS" || { echo "Missing GitHub Actions secret ANDROID_KEY_ALIAS"; exit 1; }
+        test -n "$ANDROID_KEY_PASSWORD" || { echo "Missing GitHub Actions secret ANDROID_KEY_PASSWORD"; exit 1; }
+
+    - name: Configure persistent release signing
+      env:
+        ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        ANDROID_VERSION_CODE: ${{ github.run_number }}
+      run: |
+        echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/esharex-release.jks
+        node scripts/configure-android-release.mjs
+
+    - name: Build signed release APK
       run: |
         cd android
         chmod +x gradlew
-        ./gradlew assembleDebug
+        ./gradlew assembleRelease
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: eShareX-Debug-APK
-        path: android/app/build/outputs/apk/debug/app-debug.apk
+        name: eShareX-Release-APK
+        path: android/app/build/outputs/apk/release/app-release.apk
