@@ -1,0 +1,18 @@
+{
+  "appId": "com.esharex.app",
+  "appName": "eShareX",
+  "webDir": "public",
+  "server": {
+    "androidScheme": "http"
+  },
+  "plugins": {
+    "Nodejs": {
+      "nodeDir": "nodejs",
+      "startMode": "auto"
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#080808"
+    }
+  }
+}
