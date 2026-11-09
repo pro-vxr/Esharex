@@ -3,13 +3,10 @@
   "appName": "eShareX",
   "webDir": "public",
   "server": {
-    "androidScheme": "http"
+    "androidScheme": "http",
+    "cleartext": true
   },
   "plugins": {
-    "Nodejs": {
-      "nodeDir": "nodejs",
-      "startMode": "auto"
-    },
     "StatusBar": {
       "style": "DARK",
       "backgroundColor": "#080808"
