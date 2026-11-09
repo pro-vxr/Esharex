@@ -1,84 +1,71 @@
-# eShareX — Native Android LAN sharing
+# eShareX 2.0.0
 
-This repository is the **native Java Android version** of eShareX. The previous Capacitor/Node.js project and its build workflow have been removed from this package so that there is one app implementation and one Android build workflow.
+eShareX is a native Android host app with a browser-based local-network interface. The host phone runs a NanoHTTPD server on port 8080; other devices on the same reachable LAN can open the host address in a browser.
 
-## What is included
+## What's included in this update
 
-- Native Android app (Java) with a WebView interface.
-- Embedded NanoHTTPD server listening on port `8080` on all network interfaces.
-- Local chat using HTTP polling (`GET /api/messages`, `POST /api/chat`).
-- File upload and download endpoints (`POST /api/upload`, `/uploads/<file>`).
-- Foreground hosting service and persistent notification while the room is hosted.
-- Startup health check so the WebView waits until the local server is ready.
-- Android file picker support for attaching files.
-- One GitHub Actions workflow that builds and uploads a debug APK.
+- Home (`/`), General Chat (`/chat`) and Friends (`/friends`) routes.
+- Native Android launcher icon and dark, responsive interface.
+- Android foreground notification while the host service is running.
+- Local user registration with a persistent device ID stored in browser local storage.
+- Online presence using periodic heartbeats (45-second online window).
+- General group messages and one-to-one direct-message conversations.
+- General and direct-message history persisted in the app's private storage.
+- Image thumbnails, inline video playback, and file download cards.
+- General-chat and per-conversation text export.
+- Server information in the three-dot menu.
+- Web app manifest and service worker shell cache for supported secure origins.
 
-## Build the APK with GitHub Actions
+## Build
 
-1. Upload the **contents** of this folder to the root of your GitHub repository.
-2. Commit and push to `main` (or `master`).
-3. Open the repository's **Actions** tab and select **Build eShareX APK**.
-4. Wait for the workflow to complete successfully.
-5. Open the completed run and download the `eShareX-debug-apk` artifact.
-6. Extract the APK from the artifact ZIP and install it on your Android phone.
+The GitHub Actions workflow builds a debug APK:
 
-The workflow uses the Android SDK already present on GitHub's Ubuntu runner and installs only the required Android 34 packages. It deliberately avoids the deprecated SDK package named `tools` that caused the earlier setup failure.
+1. Push to `main` or `master`, or manually run **Build eShareX APK**.
+2. Open the successful workflow run.
+3. Download the `eShareX-debug-apk` artifact.
 
-## Run eShareX
+The APK output is `app/build/outputs/apk/debug/app-debug.apk`.
 
-1. Install and open eShareX on the phone that will host the room.
-2. Connect the host phone and joining devices to the same Wi-Fi network or hotspot.
-3. Enter a display name and tap **Join Chat**.
-4. Open the three-dot menu and choose **Show IP & QR Code**.
-5. On another device, open the displayed `http://<host-ip>:8080` address in a browser.
-6. Use **Share Chat Link** to share the host address. If the Android share sheet is unavailable, the address is copied instead.
+## Run and connect
 
-Keep eShareX open while hosting. Android battery-management settings may still stop long-running background work on some devices.
+1. Install eShareX on the Android phone that will host the room.
+2. Open eShareX and leave it running; the foreground notification indicates the host service.
+3. Connect other devices to the same Wi-Fi/hotspot.
+4. On another device, open the host address shown under the three-dot menu.
+5. Choose a display name and join.
 
-## Build requirements
+The host address is not shown below the Join button in the browser version. In the Android app, the local address is shown there when available.
 
-- JDK 17
-- Android SDK Platform 34
-- Android Build Tools 34.0.0
-- Gradle wrapper is included (Gradle 8.2)
+## API overview
 
-The app uses Android Gradle Plugin 8.2.2 and Java 17. No Node.js, npm, Capacitor, signing key, or GitHub secrets are required for a debug APK.
+- `GET /api/health`
+- `GET /api/server-info`
+- `POST /api/register` — `{ id, name }`
+- `POST /api/presence` — `{ id }`
+- `GET /api/users?id=<deviceId>`
+- `GET /api/messages`
+- `POST /api/chat` — `{ userId, username, text }`
+- `POST /api/dm` — `{ from, to, text }`
+- `GET /api/dm?me=<id>&peer=<id>`
+- `POST /api/upload` — multipart `file`, `username`, `userId`, `caption`
+- `GET /api/export/chat`
+- `GET /api/export/dm?me=<id>&peer=<id>`
 
-## API
+## Important security and deployment notes
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/health` | Local server health check |
-| GET | `/api/server-info` | Host IPv4 address and room URL |
-| GET | `/api/messages` | Current in-memory chat history |
-| POST | `/api/chat` | Send a JSON text message |
-| POST | `/api/upload` | Upload a multipart file |
-| GET | `/uploads/<stored-name>` | Retrieve an uploaded file |
+This is a local-network collaboration app, not an internet-facing secure messenger.
 
-## Important limitations and safety
+- Device IDs are client-generated identifiers, not cryptographically authenticated identities. A malicious participant on the same network could impersonate an ID or inspect/alter traffic.
+- Direct messages are separated by sender and recipient in the API, but they are **not end-to-end encrypted** and should not be treated as confidential against the host or a network attacker.
+- The server currently allows LAN requests and CORS broadly to support same-network browser clients. Do not expose port 8080 to the public internet.
+- Presence is best-effort and expires after 45 seconds without a heartbeat.
+- Chat and uploaded files are stored in the host app's private storage. This update adds persistence, but does not include cloud sync or multi-host replication.
+- Browser PWA installation and service workers generally require HTTPS or localhost. On plain `http://<LAN-IP>:8080`, browser installation support varies by browser; the browser's own install/add-to-home-screen option may be unavailable.
+- GitHub Actions builds new APK artifacts, but does not automatically install updates on existing devices. Users must install a newer APK. A future signed release/update flow is recommended.
 
-- This is a **local-network** sharing tool, not a cloud service. It does not work across the public internet unless you separately configure a secure network route.
-- There is currently no login, room password, end-to-end encryption, or transport encryption. Anyone who can reach port `8080` on the same network may be able to read messages and upload files. Use it only on a trusted network and do not share sensitive files.
-- Chat history is stored in memory and is cleared when the host app process is restarted. Uploaded files remain in the app's private storage until the app's data is cleared or the app is uninstalled.
-- The QR code library is loaded from a CDN, so QR rendering requires internet access. The room address remains visible and can be copied without the QR library.
-- The UI's icons are built in and do not require an icon-font download.
-- Large uploads depend on available phone storage and the browser/device limits.
-- The app currently targets Android API 28 for broad compatibility. This is suitable for local testing, but target SDK and privacy/security hardening should be reviewed before any Play Store release.
+## Compatibility
 
-## Repository layout
-
-```text
-.github/workflows/android.yml
-app/build.gradle
-app/src/main/AndroidManifest.xml
-app/src/main/assets/index.html
-app/src/main/java/com/esharex/app/MainActivity.java
-app/src/main/java/com/esharex/app/ShareHttpServer.java
-app/src/main/java/com/esharex/app/ShareServerService.java
-build.gradle
-gradle/wrapper/
-gradle.properties
-gradlew
-gradlew.bat
-settings.gradle
-```
+- Android minimum SDK: 24 (Android 7.0).
+- Compile SDK: 34.
+- Java: 17.
+- HTTP server port: 8080.

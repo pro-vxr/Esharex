@@ -8,7 +8,7 @@
         android:allowBackup="false"
         android:usesCleartextTraffic="true"
         android:label="eShareX"
-        android:icon="@android:drawable/sym_def_app_icon"
+        android:icon="@drawable/ic_esharex"
         android:theme="@style/AppTheme">
         <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
