@@ -34,7 +34,7 @@ jobs:
           fi
           SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n 1)"
           if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager was not found"
+            echo "sdkmanager was not found under $SDK_ROOT/cmdline-tools"
             exit 1
           fi
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
@@ -56,7 +56,6 @@ jobs:
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-
           for name in SIGNING_KEY_BASE64 SIGNING_STORE_PASSWORD SIGNING_KEY_ALIAS SIGNING_KEY_PASSWORD; do
             if [ -z "${!name:-}" ]; then
               echo "Missing GitHub Actions secret: $name"
@@ -70,19 +69,15 @@ jobs:
 
           ACTUAL_SHA256="$(sha256sum "$KEYSTORE" | awk '{print $1}')"
           EXPECTED_SHA256="ae3885e64e328016ff53283ed06a1876207f8ae6b02deff15bca203c9cfe33dc"
-
           echo "Decoded keystore SHA-256: $ACTUAL_SHA256"
-
           if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-            echo "ERROR: GitHub keystore does not match your local keystore."
-            echo "Check the SIGNING_KEY_BASE64 secret."
+            echo "ERROR: SIGNING_KEY_BASE64 does not decode to the keystore you verified in Termux."
+            echo "Recreate the Base64 file from ~/esharex-release.jks and replace the GitHub SIGNING_KEY_BASE64 secret."
             exit 1
           fi
 
           echo "Checking keystore password and alias..."
-          keytool -list -keystore "$KEYSTORE" \
-            -storepass "$SIGNING_STORE_PASSWORD" \
-            -alias "$SIGNING_KEY_ALIAS" >/dev/null
+          keytool -list -keystore "$KEYSTORE" -storepass "$SIGNING_STORE_PASSWORD" -alias "$SIGNING_KEY_ALIAS" >/dev/null
           echo "Keystore password and alias are valid."
 
           echo "Checking private-key password..."

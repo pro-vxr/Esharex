@@ -93,6 +93,26 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void copyText(String value) {
+            runOnUiThread(() -> {
+                android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("eShareX", value == null ? "" : value));
+                Toast.makeText(MainActivity.this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+            });
+        }
+
+        @JavascriptInterface
+        public void shareLink(String url) {
+            runOnUiThread(() -> {
+                Intent send = new Intent(Intent.ACTION_SEND);
+                send.setType("text/plain");
+                send.putExtra(Intent.EXTRA_SUBJECT, "eShareX");
+                send.putExtra(Intent.EXTRA_TEXT, "Join me on eShareX: " + (url == null ? HOME_URL : url));
+                startActivity(Intent.createChooser(send, "Share eShareX"));
+            });
+        }
+
+        @JavascriptInterface
         public void showNotification(String title, String body) {
             runOnUiThread(() -> {
                 if (Build.VERSION.SDK_INT >= 33 &&

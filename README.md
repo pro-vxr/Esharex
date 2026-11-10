@@ -1,4 +1,4 @@
-# eShareX 2.2.0
+# eShareX 2.3.0
 
 eShareX is a native Android host app with a browser-based local-network interface. The host phone runs a NanoHTTPD server on port 8080; other devices on the same reachable LAN can open the host address in a browser.
 
@@ -12,8 +12,7 @@ eShareX is a native Android host app with a browser-based local-network interfac
 - General group messages and one-to-one direct-message conversations.
 - General and direct-message history persisted in the app's private storage.
 - Image thumbnails, inline video playback, and file download cards.
-- General-chat and per-conversation text export.
-- Server information in the three-dot menu.
+- Server information and a scannable QR connection code on the Android landing page.
 - Web app manifest and service worker shell cache for supported secure origins.
 
 ## Build
@@ -36,7 +35,7 @@ The APK output is `app/build/outputs/apk/release/app-release.apk`.
 4. On another device, open the host address shown under the three-dot menu.
 5. Choose a display name and join.
 
-The host address is not shown below the Join button in the browser version. In the Android app, the local address is shown there when available.
+The host address and QR code are shown below the Join button in the Android app only. They are hidden in the browser version.
 
 ## API overview
 
@@ -50,8 +49,7 @@ The host address is not shown below the Join button in the browser version. In t
 - `POST /api/dm` — `{ from, to, text }`
 - `GET /api/dm?me=<id>&peer=<id>`
 - `POST /api/upload` — multipart `file`, `username`, `userId`, `caption`
-- `GET /api/export/chat`
-- `GET /api/export/dm?me=<id>&peer=<id>`
+- `GET /api/qr?text=<connection-address>` — QR code PNG for the local connection address.
 
 ## Important security and deployment notes
 
@@ -81,7 +79,7 @@ This is a local-network collaboration app, not an internet-facing secure messeng
 - Chat and Friends now share the same navigation/header placement.
 - Added a conversation context header, full-width responsive chat layout, multiline composer, file/camera/voice controls, message copy/reply/edit actions, and swipe-right reply.
 - Added general-chat message editing and private-chat file uploads.
-- Added an Android 13+ notification permission request after the user chooses Join, without a separate in-app permission button.
+- Added an Android 13+ notification permission request after the first app page is ready, not during the logo/splash screen or when Join is tapped. Added compact message bubbles, 12-hour timestamps below bubbles, custom edit dialog with server-synchronized updates, compact reply preview strip, attachment previews with captions, native Android share sheet, and an Android-only landing-page IP/QR block. Removed visible logout, install-app and export controls.
 
 The app is intended for trusted local networks. Messages and uploaded files are not end-to-end encrypted.
 
@@ -112,3 +110,16 @@ Add these four **Actions secrets** in GitHub → Repository → Settings → Sec
 The workflow decodes the private key into the temporary GitHub runner and signs the release APK. The workflow intentionally fails if these secrets are missing. Do not publish the keystore or passwords.
 
 Because the old `app/esharex.keystore` was included in a distributed source ZIP, treat its signing identity as compromised. If an APK signed with that key has already been installed, the new private key will have a different signature: uninstall the old app once before installing the first APK signed with the new key. Back up any files you need first. Future releases signed with the new private key can update normally as long as you preserve that key and increase `versionCode`.
+
+
+## Version 2.3.0 interface and messaging changes
+
+- Message timestamps now appear below bubbles in 12-hour format.
+- Copy, Reply and Edit actions use tighter spacing.
+- Editing uses an in-app dialog; edits are persisted by the host and refreshed on connected clients.
+- Reply context appears in a compact strip above the composer, not inside the text field.
+- Image/video/document attachments show a local preview, filename/type/size and optional caption before sending; attachments can be sent as replies.
+- Android Share opens the native share chooser; web sharing uses Web Share where supported and clipboard fallback otherwise.
+- Removed visible Logout, Install App and Export controls.
+- Android landing page shows the host IP and QR code; browser landing page hides those details.
+- Android notification permission is requested once after the first app page is ready.

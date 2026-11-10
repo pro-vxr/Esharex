@@ -4,6 +4,9 @@ import android.content.Context;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import fi.iki.elonen.NanoHTTPD;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.MultiFormatWriter;
+import com.google.zxing.common.BitMatrix;
 import java.io.*;
 import java.net.Inet4Address;
 import java.net.NetworkInterface;
@@ -37,11 +40,12 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.1"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.3.0"));
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
                 return json(new JSONObject().put("ip", ip).put("port", 8080).put("address", "http://" + ip + ":8080"));
             }
+            if ("/api/qr".equals(uri) && Method.GET.equals(method)) return qrCode(session);
             if ("/api/register".equals(uri) && Method.POST.equals(method)) return register(session);
             if ("/api/users".equals(uri) && Method.GET.equals(method)) return listUsers(session);
             if ("/api/presence".equals(uri) && Method.POST.equals(method)) return heartbeat(session);
@@ -65,6 +69,22 @@ public class ShareHttpServer extends NanoHTTPD {
         Map<String,String> files = new HashMap<>(); session.parseBody(files);
         String raw = files.get("postData"); return new JSONObject(raw == null ? "{}" : raw);
     }
+
+    private Response qrCode(IHTTPSession session) throws Exception {
+        String value = session.getParms().get("text");
+        if (value == null || value.trim().isEmpty()) value = "http://" + getLocalIp() + ":8080";
+        BitMatrix matrix = new MultiFormatWriter().encode(value, BarcodeFormat.QR_CODE, 320, 320);
+        android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(320, 320, android.graphics.Bitmap.Config.ARGB_8888);
+        for (int y = 0; y < 320; y++) for (int x = 0; x < 320; x++)
+            bitmap.setPixel(x, y, matrix.get(x, y) ? android.graphics.Color.BLACK : android.graphics.Color.WHITE);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
+        bitmap.recycle();
+        Response response = newFixedLengthResponse(Response.Status.OK, "image/png", new ByteArrayInputStream(output.toByteArray()), output.size());
+        addCors(response);
+        return response;
+    }
+
     private Response register(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session);
         String id = safeText(in.optString("id", ""), 80);
@@ -212,11 +232,11 @@ public class ShareHttpServer extends NanoHTTPD {
         String ext=""; int dot=original.lastIndexOf('.'); if(dot>=0&&dot<original.length()-1) ext=original.substring(dot);
         String stored=UUID.randomUUID()+ext; File destination=new File(uploadsDir,stored);
         try(InputStream in=new FileInputStream(temp); FileOutputStream out=new FileOutputStream(destination)){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}
-        String mime=first(params,"file.type"); if(mime==null)mime="application/octet-stream";
+        String mime=first(params,"mimeType"); if(mime==null||mime.isEmpty())mime=first(params,"file.type"); if(mime==null||mime.isEmpty())mime="application/octet-stream";
         JSONObject msg=new JSONObject().put("id",UUID.randomUUID().toString()).put("type","file").put("url","/uploads/"+stored)
             .put("filename",original).put("mime",mime).put("username",safeText(first(params,"username"),32))
             .put("userId",safeText(first(params,"userId"),80)).put("caption",safeText(first(params,"caption"),500))
-            .put("timestamp",System.currentTimeMillis());
+            .put("fileSize",destination.length()).put("timestamp",System.currentTimeMillis());
         String reply=first(params,"replyTo"); if(reply!=null)try{msg.put("replyTo",new JSONObject(reply));}catch(Exception ignored){}
         String to=first(params,"to"), from=first(params,"from");
         if(to!=null && from!=null) {
