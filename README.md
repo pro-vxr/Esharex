@@ -1,3 +1,9 @@
+# eShareX 2.3.1
+
+This update fixes reply targeting across General Chat and private conversations, preserves line breaks in sent and edited messages, moves the edited marker below the message bubble, restores the Export / Logout / Server information menu on Chat and Friends only, and reduces attachment preview height.
+
+Build the signed release with the repository GitHub Actions workflow.
+
 # eShareX 2.3.0
 
 eShareX is a native Android host app with a browser-based local-network interface. The host phone runs a NanoHTTPD server on port 8080; other devices on the same reachable LAN can open the host address in a browser.

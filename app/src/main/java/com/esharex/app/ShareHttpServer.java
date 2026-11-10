@@ -116,7 +116,7 @@ public class ShareHttpServer extends NanoHTTPD {
     }
     private Response handleChat(IHTTPSession session) throws Exception {
         JSONObject input = readBody(session);
-        String text = safeText(input.optString("text", ""), 4000);
+        String text = safeMessageText(input.optString("text", ""), 4000);
         if (text.trim().isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "Message is empty");
         String id = input.optString("userId", "");
         JSONObject user = users.get(id);
@@ -132,7 +132,7 @@ public class ShareHttpServer extends NanoHTTPD {
         JSONObject in = readBody(session);
         String id = in.optString("id", "");
         String userId = in.optString("userId", "");
-        String text = safeText(in.optString("text", ""), 4000);
+        String text = safeMessageText(in.optString("text", ""), 4000);
         if (id.isEmpty() || userId.isEmpty() || text.trim().isEmpty())
             return jsonError(Response.Status.BAD_REQUEST, "Message ID and text are required");
         for (JSONObject msg : messages) {
@@ -148,7 +148,7 @@ public class ShareHttpServer extends NanoHTTPD {
     }
     private Response sendDirectMessage(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session);
-        String from = in.optString("from",""), to = in.optString("to",""), text = safeText(in.optString("text",""),4000);
+        String from = in.optString("from",""), to = in.optString("to",""), text = safeMessageText(in.optString("text",""),4000);
         if (from.isEmpty() || to.isEmpty() || from.equals(to) || text.trim().isEmpty()) return jsonError(Response.Status.BAD_REQUEST,"Valid sender, recipient and message are required");
         JSONObject sender = users.get(from), recipient = users.get(to);
         if (sender == null || recipient == null) return jsonError(Response.Status.NOT_FOUND,"User not found");
@@ -173,7 +173,7 @@ public class ShareHttpServer extends NanoHTTPD {
         JSONObject in = readBody(session);
         String id = in.optString("id", "");
         String from = in.optString("from", "");
-        String text = safeText(in.optString("text", ""), 4000);
+        String text = safeMessageText(in.optString("text", ""), 4000);
         if (id.isEmpty() || from.isEmpty() || text.trim().isEmpty())
             return jsonError(Response.Status.BAD_REQUEST, "Message ID and text are required");
         for (JSONObject msg : directMessages) {
@@ -251,6 +251,13 @@ public class ShareHttpServer extends NanoHTTPD {
     private void trim(List<JSONObject> list,int max){while(list.size()>max)list.remove(0);}
     private JSONArray arrayCopy(List<JSONObject> list){JSONArray a=new JSONArray();for(JSONObject o:list)a.put(o);return a;}
     private String first(Map<String,List<String>> p,String k){List<String> v=p.get(k);return v==null||v.isEmpty()?null:v.get(0);}
+    private String safeMessageText(String v, int max) {
+        if (v == null) return "";
+        // Keep intentional line breaks and tabs; remove other control characters.
+        String cleaned = v.replaceAll("[\\p{Cntrl}&&[^\\n\\r\\t]]", "").trim();
+        return cleaned.length() > max ? cleaned.substring(0, max) : cleaned;
+    }
+
     private String safeText(String v,int max){if(v==null)return "";String c=v.replaceAll("[\\p{Cntrl}]","").trim();return c.length()>max?c.substring(0,max):c;}
     private void loadArray(File f,List<JSONObject> target){try{if(f.exists()){JSONArray a=new JSONArray(readFile(f));for(int i=0;i<a.length();i++)target.add(a.getJSONObject(i));}}catch(Exception ignored){}}
     private void saveArray(File f,List<JSONObject> source){try(FileOutputStream o=new FileOutputStream(f)){o.write(arrayCopy(source).toString().getBytes("UTF-8"));}catch(Exception ignored){}}
