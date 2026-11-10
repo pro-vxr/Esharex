@@ -1,9 +1,8 @@
+\
 name: Build eShareX APK
 
 on:
   push:
-    branches: [main, master]
-  pull_request:
     branches: [main, master]
   workflow_dispatch:
 
@@ -12,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build signed release APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -43,26 +42,44 @@ jobs:
           echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
           echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
           yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
-          "$SDKMANAGER" --sdk_root="$SDK_ROOT" \
-            "platform-tools" \
-            "platforms;android-34" \
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" \\
+            "platform-tools" \\
+            "platforms;android-34" \\
             "build-tools;34.0.0"
+
+      - name: Configure release signing
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SIGNING_KEY_BASE64" ] || [ -z "$SIGNING_STORE_PASSWORD" ] || [ -z "$SIGNING_KEY_ALIAS" ] || [ -z "$SIGNING_KEY_PASSWORD" ]; then
+            echo "Missing signing secrets. Configure SIGNING_KEY_BASE64, SIGNING_STORE_PASSWORD, SIGNING_KEY_ALIAS, and SIGNING_KEY_PASSWORD in GitHub repository Actions secrets."
+            exit 1
+          fi
+          echo "$SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/esharex-release.jks"
+          echo "EShareX_STORE_FILE=$RUNNER_TEMP/esharex-release.jks" >> "$GITHUB_ENV"
+          echo "EShareX_STORE_PASSWORD=$SIGNING_STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "EShareX_KEY_ALIAS=$SIGNING_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "EShareX_KEY_PASSWORD=$SIGNING_KEY_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Configure Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
+      - name: Build signed release APK
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon clean assembleDebug
+          ./gradlew --no-daemon clean assembleRelease
 
       - name: Verify APK
-        run: test -s app/build/outputs/apk/debug/app-debug.apk
+        run: test -s app/build/outputs/apk/release/app-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: eShareX-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: eShareX-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30

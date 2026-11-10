@@ -4,5 +4,7 @@ local.properties
 .idea/
 *.iml
 .DS_Store
+
+# Never commit signing keys
 *.jks
 *.keystore

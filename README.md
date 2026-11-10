@@ -1,4 +1,4 @@
-# eShareX 2.0.0
+# eShareX 2.2.0
 
 eShareX is a native Android host app with a browser-based local-network interface. The host phone runs a NanoHTTPD server on port 8080; other devices on the same reachable LAN can open the host address in a browser.
 
@@ -18,13 +18,15 @@ eShareX is a native Android host app with a browser-based local-network interfac
 
 ## Build
 
-The GitHub Actions workflow builds a debug APK:
+The GitHub Actions workflow builds a signed release APK (signed with a private keystore supplied through GitHub Actions secrets):
 
 1. Push to `main` or `master`, or manually run **Build eShareX APK**.
 2. Open the successful workflow run.
-3. Download the `eShareX-debug-apk` artifact.
+3. Download the `eShareX-apk` artifact.
 
-The APK output is `app/build/outputs/apk/debug/app-debug.apk`.
+The APK output is `app/build/outputs/apk/release/app-release.apk`.
+
+**Install notes:** the downloaded artifact is a `.zip` — extract it and install `app-release.apk`. If an older eShareX (signed with a different key) is installed, uninstall it once first. Always increase `versionCode` in `app/build.gradle` for each new release.
 
 ## Run and connect
 
@@ -82,3 +84,31 @@ This is a local-network collaboration app, not an internet-facing secure messeng
 - Added an Android 13+ notification permission request after the user chooses Join, without a separate in-app permission button.
 
 The app is intended for trusted local networks. Messages and uploaded files are not end-to-end encrypted.
+
+
+## Secure release signing setup
+
+**Do not commit a keystore or signing passwords to this repository.** A keystore previously included in a ZIP/repository must be considered exposed and should not be used for future releases.
+
+Create a new private release keystore on a trusted computer or in Termux, and keep a secure offline backup. For example:
+
+```bash
+keytool -genkeypair -v -keystore esharex-release.jks -alias esharex -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Convert it to Base64 (Termux/Linux):
+
+```bash
+base64 -w 0 esharex-release.jks
+```
+
+Add these four **Actions secrets** in GitHub → Repository → Settings → Secrets and variables → Actions:
+
+- `SIGNING_KEY_BASE64` — the Base64 output (do not paste it into chat or commit it)
+- `SIGNING_STORE_PASSWORD` — keystore password
+- `SIGNING_KEY_ALIAS` — `esharex` (or the alias you selected)
+- `SIGNING_KEY_PASSWORD` — key password
+
+The workflow decodes the private key into the temporary GitHub runner and signs the release APK. The workflow intentionally fails if these secrets are missing. Do not publish the keystore or passwords.
+
+Because the old `app/esharex.keystore` was included in a distributed source ZIP, treat its signing identity as compromised. If an APK signed with that key has already been installed, the new private key will have a different signature: uninstall the old app once before installing the first APK signed with the new key. Back up any files you need first. Future releases signed with the new private key can update normally as long as you preserve that key and increase `versionCode`.
