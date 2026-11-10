@@ -122,6 +122,42 @@ input,textarea,[contenteditable="true"],.ip-text, .selectable{
 }
 button,a{ -webkit-tap-highlight-color:transparent; }
 
+
+/* 2.4.2: fixed conversation frame, keyboard-aware composer and scroll regions */
+html,body{height:100%;min-height:0}
+.app{min-height:100vh}
+body.conversation-mode{height:var(--app-height,100dvh);min-height:0;overflow:hidden}
+body.conversation-mode .app{height:var(--app-height,100dvh);min-height:0;overflow:hidden}
+body.conversation-mode .topbar{position:relative;top:auto;flex:0 0 68px}
+body.conversation-mode .layout{flex:1 1 auto;min-height:0;height:0;display:flex;flex-direction:column;overflow:hidden;padding-top:10px;padding-bottom:6px}
+body.conversation-mode .nav{flex:0 0 auto;margin:0 0 8px}
+body.conversation-mode .page.active{display:flex;flex:1 1 auto;min-height:0;flex-direction:column;overflow:hidden}
+body.conversation-mode #chatPage{gap:0}
+body.conversation-mode .chat-context{flex:0 0 auto}
+body.conversation-mode .chat-shell{display:flex;flex:1 1 auto;min-height:0;overflow:hidden}
+body.conversation-mode .chat-panel{height:100%;min-height:0;flex:1 1 auto;display:flex;flex-direction:column;overflow:hidden}
+body.conversation-mode .messages{height:auto;min-height:0;flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain}
+body.conversation-mode .composer{flex:0 0 auto;position:relative;z-index:3;padding:7px 9px max(6px,env(safe-area-inset-bottom));margin:0;background:#111720}
+body.conversation-mode .composer-row{flex:0 0 auto}
+body.conversation-mode #dmPanel{flex:1 1 auto;min-height:0;height:100%;overflow:hidden;flex-direction:column}
+body.conversation-mode #dmPanel[style*="display: block"]{display:flex!important}
+body.conversation-mode #dmPanel .messages{flex:1 1 auto;min-height:0}
+body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
+.filecard{gap:0}
+.filecard-name{display:block;overflow-wrap:anywhere;font-size:13px;line-height:1.4}
+.fileicon,.attachment-file-icon{display:none!important}
+@media(max-width:600px){
+ body.conversation-mode .topbar{flex-basis:62px;height:62px}
+ body.conversation-mode .layout{padding:8px 10px 4px}
+ body.conversation-mode .nav{margin-bottom:6px;padding:3px}
+ body.conversation-mode .nav a{padding:8px 5px}
+ body.conversation-mode .chat-context{padding:7px 2px 9px}
+ body.conversation-mode .chat-panel{border-radius:17px}
+ body.conversation-mode .messages{padding:10px 8px}
+ body.conversation-mode .composer{padding:6px 7px max(4px,env(safe-area-inset-bottom))}
+ body.conversation-mode .composer-field textarea{min-height:38px;max-height:96px;padding:8px 7px}
+}
+
 </style>
 </head>
 <body>
@@ -146,7 +182,7 @@ button,a{ -webkit-tap-highlight-color:transparent; }
   <div class="hero-card"><div class="hero-art"><svg viewBox="0 0 120 120" fill="none"><rect x="24" y="25" width="72" height="70" rx="19" stroke="#b8f36b" stroke-width="5"/><path d="M40 52h40M40 67h28" stroke="#b8f36b" stroke-width="5" stroke-linecap="round"/><circle cx="85" cy="82" r="15" fill="#b8f36b"/><path d="m79 82 4 4 8-9" stroke="#10150b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="field"><label>Your display name</label><input id="joinName" maxlength="32" placeholder="Choose a name"></div><div class="joinrow"><button class="btn" onclick="joinNetwork()">Join eShareX</button></div><div id="ipUnder" class="ip-under"></div><div id="homeConnection" class="home-connection"><div class="ip-label">LOCAL CONNECTION</div><div id="homeIp" class="home-ip">Finding local address…</div><button class="copy-ip" onclick="copyHomeIp()">Copy address</button></div><p style="font-size:11px;margin:12px 0 0;text-align:center">Everyone must be connected to the same local network.</p></div>
  </div>
 <section class="guide panel" id="howToUse">
- <div class="guide-head"><div><div class="eyebrow">GETTING STARTED</div><h2>How to use eShareX</h2><p>Connect nearby devices and share on the same local network.</p></div><button class="btn secondary" id="guideToggle" onclick="toggleGuide()">Show guide</button></div>
+ <div class="guide-head"><div><div class="eyebrow">GETTING STARTED</div><h2>How to use eShareX</h2><p>Connect nearby devices and share on the same local network.</p></div><button class="btn secondary" id="guideToggle" onclick="toggleGuide()">Show</button></div>
  <div class="guide-content" id="guideContent" hidden>
   <div class="guide-step"><b>1</b><div><strong>Connect to the same network</strong><p>Use the same Wi-Fi router, or turn on a hotspot on one phone and connect the other phone to it.</p></div></div>
   <div class="guide-step"><b>2</b><div><strong>Open eShareX on the hosting phone</strong><p>The first phone runs the local server. Keep eShareX open while others use the room.</p></div></div>
@@ -193,7 +229,7 @@ let currentPeer=null,seenGeneral=new Set(),seenDM=new Set(),poller=null,heartbea
 const isNative=/Android/i.test(navigator.userAgent)&&location.hostname==='127.0.0.1';
 if(myName)$('joinName').value=myName;
 if(!isNative)document.body.classList.add('web-mode');else document.body.classList.add('native-mode');
-function route(){let p=location.pathname;if(!['/','/chat','/friends'].includes(p))p='/';if(myName&&p==='/'){history.replaceState({},'','/chat');p='/chat'}if(!myName&&p!=='/'){history.replaceState({},'','/');p='/'}document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));const ids={'/':'homePage','/chat':'chatPage','/friends':'friendsPage'};$(ids[p]).classList.add('active');document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.route===p));$('moreMenu').classList.remove('show');$('exportMenuItem').style.display=p==='/'?'none':'block';$('logoutMenuItem').style.display=p==='/'?'none':'block';document.querySelector('.nav').style.display=p==='/'?'none':'flex';document.querySelector('.footer').style.display=p==='/'?'block':'none';if(p==='/chat'&&myName){if(!currentPeer){$('dmPanel').style.display='none';document.querySelector('.chat-shell').style.display='block';$('conversationName').textContent='General chat'}loadGeneral();loadPeople()}if(p==='/friends'&&myName)loadPeople();}
+function route(){let p=location.pathname;if(!['/','/chat','/friends'].includes(p))p='/';if(myName&&p==='/'){history.replaceState({},'','/chat');p='/chat'}if(!myName&&p!=='/'){history.replaceState({},'','/');p='/'}document.body.classList.toggle('conversation-mode',p==='/chat'||p==='/friends');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));const ids={'/':'homePage','/chat':'chatPage','/friends':'friendsPage'};$(ids[p]).classList.add('active');document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.route===p));$('moreMenu').classList.remove('show');$('exportMenuItem').style.display=p==='/'?'none':'block';$('logoutMenuItem').style.display=p==='/'?'none':'block';document.querySelector('.nav').style.display=p==='/'?'none':'flex';document.querySelector('.footer').style.display=p==='/'?'block':'none';if(p==='/chat'&&myName){if(!currentPeer){$('dmPanel').style.display='none';document.querySelector('.chat-shell').style.display='block';$('conversationName').textContent='General chat'}loadGeneral();loadPeople()}if(p==='/friends'&&myName)loadPeople();}
 function navigate(e,p){if(e)e.preventDefault();if(!myName&&p!=='/')return toast('Join eShareX first');history.pushState({},'',p);route()}function go(p){history.pushState({},'',p);route()}window.addEventListener('popstate',route);
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2300)}
 async function api(url,opts={}){const r=await fetch(url,opts);if(!r.ok)throw new Error((await r.text())||r.statusText);return r.json()}
@@ -209,7 +245,7 @@ function renderMessage(m,container,mine){
  if(m.type==='file'){
   if((m.mime||'').startsWith('image/')){const im=document.createElement('img');im.src=m.url;im.alt=m.filename||'Shared image';im.onclick=()=>openMedia('img',m.url);b.appendChild(im)}
   else if((m.mime||'').startsWith('video/')){const v=document.createElement('video');v.src=m.url;v.controls=true;v.preload='metadata';b.appendChild(v)}
-  else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.target='_blank';link.download=m.filename||'';const icon=document.createElement('span');icon.className='fileicon';icon.textContent=fileIcon(m.mime,m.filename);const meta=document.createElement('span');meta.textContent=m.filename||'Download file';link.append(icon,meta);b.appendChild(link)}
+  else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.target='_blank';link.download=m.filename||'';const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';link.append(meta);b.appendChild(link)}
   if(m.caption){const c=document.createElement('div');c.textContent=m.caption;b.appendChild(c)}
  }else{const t=document.createElement('div');t.className='message-text';t.textContent=m.text||'';b.appendChild(t)}
  row.appendChild(b);
@@ -252,12 +288,21 @@ function openMedia(type,url){$('mediaContent').innerHTML='';let el=document.crea
 function chooseAttachment(){$('fileInput').click()}
 $('fileInput').addEventListener('change',e=>{const f=e.target.files[0];if(f)previewAttachment(f);e.target.value=''});
 function formatBytes(n){if(!n)return '0 B';const u=['B','KB','MB','GB'];let i=0,v=n;while(v>=1024&&i<u.length-1){v/=1024;i++}return v.toFixed(i?1:0)+' '+u[i]}
-function previewAttachment(f){pendingFile=f;const box=$('attachmentPreview');box.innerHTML='';if(f.type.startsWith('image/')){const img=document.createElement('img');img.src=URL.createObjectURL(f);img.alt=f.name;box.appendChild(img)}else if(f.type.startsWith('video/')){const video=document.createElement('video');video.src=URL.createObjectURL(f);video.controls=true;box.appendChild(video)}else{const wrap=document.createElement('div');wrap.className='attachment-file';const ico=document.createElement('span');ico.className='attachment-file-icon';ico.textContent=fileIcon(f.type,f.name);const meta=document.createElement('div');meta.className='attachment-file-meta';const name=document.createElement('strong');name.textContent=f.name;const size=document.createElement('small');size.textContent=(f.type||'Unknown file type')+' · '+formatBytes(f.size);meta.append(name,size);wrap.append(ico,meta);box.appendChild(wrap)}$('attachmentCaption').value='';$('attachmentModal').classList.add('show')}
+function previewAttachment(f){pendingFile=f;const box=$('attachmentPreview');box.innerHTML='';if(f.type.startsWith('image/')){const img=document.createElement('img');img.src=URL.createObjectURL(f);img.alt=f.name;box.appendChild(img)}else if(f.type.startsWith('video/')){const video=document.createElement('video');video.src=URL.createObjectURL(f);video.controls=true;box.appendChild(video)}else{const wrap=document.createElement('div');wrap.className='attachment-file';const meta=document.createElement('div');meta.className='attachment-file-meta';const name=document.createElement('strong');name.textContent=f.name;const size=document.createElement('small');size.textContent=(f.type||'Unknown file type')+' · '+formatBytes(f.size);meta.append(name,size);wrap.append(meta);box.appendChild(wrap)}$('attachmentCaption').value='';$('attachmentModal').classList.add('show')}
 function cancelAttachment(){if(pendingFile&&$('attachmentPreview').querySelector('img,video')){const el=$('attachmentPreview').querySelector('img,video');if(el.src.startsWith('blob:'))URL.revokeObjectURL(el.src)}pendingFile=null;$('attachmentModal').classList.remove('show')}
 async function sendAttachment(){if(!pendingFile)return;const f=pendingFile;const btn=$('sendAttachmentBtn');btn.disabled=true;btn.textContent='Sending…';const fd=new FormData();fd.append('file',f,f.name);fd.append('username',myName);fd.append('userId',deviceId);fd.append('caption',$('attachmentCaption').value.trim());fd.append('mimeType',f.type||'application/octet-stream');if(currentPeer){fd.append('from',deviceId);fd.append('to',currentPeer.id)}if(replyTarget&&replyTarget._conversation===(currentPeer?'dm:'+currentPeer.id:'general'))fd.append('replyTo',JSON.stringify({text:messagePreview(replyTarget),messageId:replyTarget.id,username:replyTarget.username||replyTarget.fromName||''}));try{const res=await fetch('/api/upload',{method:'POST',body:fd});if(!res.ok)throw new Error('Upload failed');cancelAttachment();cancelReply();if(currentPeer)await loadDM();else await loadGeneral();toast('Attachment sent')}catch(_){toast('Upload failed')}finally{btn.disabled=false;btn.textContent='Send attachment'}}
 $('generalInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey)e.stopPropagation()});$('dmInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey)e.stopPropagation()});$('generalInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'});
 $('dmInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'});
 document.addEventListener('click',e=>{if(!e.target.closest('.top-actions')&&!e.target.closest('.menu'))$('moreMenu').classList.remove('show')});
+
+function updateAppViewportHeight(){
+ const h=window.visualViewport?window.visualViewport.height:window.innerHeight;
+ document.documentElement.style.setProperty('--app-height',Math.round(h)+'px');
+}
+updateAppViewportHeight();
+window.addEventListener('resize',updateAppViewportHeight,{passive:true});
+if(window.visualViewport){window.visualViewport.addEventListener('resize',updateAppViewportHeight,{passive:true});window.visualViewport.addEventListener('scroll',updateAppViewportHeight,{passive:true});}
+
 if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('/sw.js').catch(()=>{});
 async function loadLandingConnection(){try{const info=await api('/api/server-info');serverAddress=info.address;if(info.available===false||!info.ip||info.ip==='127.0.0.1'){$('homeIp').textContent='Connect to Wi-Fi or turn on your hotspot';return}$('homeIp').textContent=info.address;if($('homeQrImage'))$('homeQrImage').src='/api/qr?text='+encodeURIComponent(info.address)}catch(_){$('homeIp').textContent='Waiting for local network…'}}
 function toggleGuide(){const c=$('guideContent'),b=$('guideToggle');c.hidden=!c.hidden;b.textContent=c.hidden?'Show':'Hide'}
