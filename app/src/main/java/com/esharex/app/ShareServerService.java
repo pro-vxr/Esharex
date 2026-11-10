@@ -7,6 +7,8 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.net.wifi.WifiManager;
+import android.net.nsd.NsdManager;
+import android.net.nsd.NsdServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -19,6 +21,8 @@ public class ShareServerService extends Service {
     private static final String CHANNEL = "esharex_host";
     private ShareHttpServer server;
     private PowerManager.WakeLock wakeLock;
+    private NsdManager nsdManager;
+    private NsdManager.RegistrationListener registrationListener;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -43,9 +47,26 @@ public class ShareServerService extends Service {
             if (!data.exists()) data.mkdirs();
             server = new ShareHttpServer(this, data);
             server.start();
+            advertiseService();
         } catch (Exception e) {
             stopSelf();
         }
+    }
+
+    private void advertiseService() {
+        nsdManager = (NsdManager) getSystemService(NSD_SERVICE);
+        NsdServiceInfo info = new NsdServiceInfo();
+        info.setServiceName("eShareX-" + android.os.Build.MODEL.replaceAll("[^A-Za-z0-9-]", ""));
+        info.setServiceType("_esharex._tcp.");
+        info.setPort(8080);
+        registrationListener = new NsdManager.RegistrationListener() {
+            @Override public void onServiceRegistered(NsdServiceInfo serviceInfo) {}
+            @Override public void onRegistrationFailed(NsdServiceInfo serviceInfo, int errorCode) {}
+            @Override public void onServiceUnregistered(NsdServiceInfo serviceInfo) {}
+            @Override public void onUnregistrationFailed(NsdServiceInfo serviceInfo, int errorCode) {}
+        };
+        try { nsdManager.registerService(info, NsdManager.PROTOCOL_DNS_SD, registrationListener); }
+        catch (Exception ignored) {}
     }
 
     private void createChannel() {
@@ -58,6 +79,7 @@ public class ShareServerService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) { return START_STICKY; }
 
     @Override public void onDestroy() {
+        if (nsdManager != null && registrationListener != null) { try { nsdManager.unregisterService(registrationListener); } catch (Exception ignored) {} }
         if (server != null) server.stop();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         super.onDestroy();

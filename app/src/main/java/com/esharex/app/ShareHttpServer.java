@@ -40,10 +40,10 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.3.0"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.4.0"));
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
-                return json(new JSONObject().put("ip", ip).put("port", 8080).put("address", "http://" + ip + ":8080"));
+                return json(new JSONObject().put("ip", ip).put("port", 8080).put("available", !"127.0.0.1".equals(ip)).put("address", "http://" + ip + ":8080"));
             }
             if ("/api/qr".equals(uri) && Method.GET.equals(method)) return qrCode(session);
             if ("/api/register".equals(uri) && Method.POST.equals(method)) return register(session);
@@ -285,7 +285,33 @@ public class ShareHttpServer extends NanoHTTPD {
     }
     private Response error(Response.Status s,String b){Response r=newFixedLengthResponse(s,"application/json; charset=utf-8",b);addCors(r);return r;}
     private void addCors(Response r){r.addHeader("Access-Control-Allow-Origin","*");r.addHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");r.addHeader("Access-Control-Allow-Headers","Content-Type");r.addHeader("Cache-Control","no-store");}
-    private String getLocalIp(){try{for(NetworkInterface n:Collections.list(NetworkInterface.getNetworkInterfaces())){String nm=n.getName().toLowerCase();if(nm.contains("wlan")||nm.contains("ap")||nm.contains("swlan")||nm.contains("p2p")){String ip=ipv4For(n);if(ip!=null)return ip;}}for(NetworkInterface n:Collections.list(NetworkInterface.getNetworkInterfaces())){String ip=ipv4For(n);if(ip!=null)return ip;}}catch(Exception ignored){}return "127.0.0.1";}
+    private String getLocalIp() {
+        try {
+            List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
+            // Prefer Wi-Fi, hotspot and Wi-Fi Direct interfaces.
+            for (NetworkInterface n : interfaces) {
+                String name = n.getName().toLowerCase(Locale.ROOT);
+                if (name.contains("wlan") || name.contains("ap") || name.contains("swlan") || name.contains("p2p")) {
+                    String ip = ipv4For(n);
+                    if (ip != null) return ip;
+                }
+            }
+            // Fall back to a private IPv4 address; never publish loopback or link-local.
+            for (NetworkInterface n : interfaces) {
+                String ip = ipv4For(n);
+                if (ip != null && isPrivateIPv4(ip)) return ip;
+            }
+            for (NetworkInterface n : interfaces) {
+                String ip = ipv4For(n);
+                if (ip != null) return ip;
+            }
+        } catch (Exception ignored) {}
+        return "127.0.0.1";
+    }
+    private boolean isPrivateIPv4(String ip) {
+        return ip.startsWith("10.") || ip.startsWith("192.168.") ||
+            ip.matches("172\\.(1[6-9]|2[0-9]|3[01])\\..*");
+    }
     private String ipv4For(NetworkInterface n){try{if(!n.isUp()||n.isLoopback())return null;for(java.net.InetAddress a:Collections.list(n.getInetAddresses()))if(!a.isLoopbackAddress()&&a instanceof Inet4Address){String ip=a.getHostAddress();if(!ip.startsWith("169.254."))return ip;}}catch(Exception ignored){}return null;}
     private String mimeFor(String p){String x=p.toLowerCase();if(x.endsWith(".html"))return"text/html; charset=utf-8";if(x.endsWith(".webmanifest")||x.endsWith(".json"))return"application/manifest+json";if(x.endsWith(".css"))return"text/css; charset=utf-8";if(x.endsWith(".js"))return"application/javascript";if(x.endsWith(".png"))return"image/png";if(x.endsWith(".jpg")||x.endsWith(".jpeg"))return"image/jpeg";if(x.endsWith(".gif"))return"image/gif";if(x.endsWith(".webp"))return"image/webp";if(x.endsWith(".svg"))return"image/svg+xml";if(x.endsWith(".ico"))return"image/x-icon";if(x.endsWith(".mp4"))return"video/mp4";if(x.endsWith(".pdf"))return"application/pdf";return"application/octet-stream";}
 }

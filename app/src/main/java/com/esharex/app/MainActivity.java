@@ -3,6 +3,9 @@ package com.esharex.app;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
+import android.net.nsd.NsdManager;
+import android.net.nsd.NsdServiceInfo;
+import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -20,6 +23,10 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 
 public class MainActivity extends Activity {
     private static final int FILE_REQUEST = 4102;
@@ -29,6 +36,10 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private boolean pageRequested = false;
+    private NsdManager nsdManager;
+    private NsdManager.DiscoveryListener discoveryListener;
+    private final Map<String, NsdServiceInfo> nearby = new HashMap<>();
+    private static final String SERVICE_TYPE = "_esharex._tcp.";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,6 +69,7 @@ public class MainActivity extends Activity {
             }
         });
         webView.addJavascriptInterface(new NotificationBridge(), "AndroidBridge");
+        nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
@@ -82,6 +94,22 @@ public class MainActivity extends Activity {
 
 
     private class NotificationBridge {
+        @JavascriptInterface
+        public void startDiscovery() {
+            runOnUiThread(() -> beginDiscovery());
+        }
+
+        @JavascriptInterface
+        public void joinNearby(String url) {
+            runOnUiThread(() -> {
+                if (url != null && url.matches("http://[0-9.]+:8080/?")) {
+                    stopDiscovery();
+                    stopService(new Intent(MainActivity.this, ShareServerService.class));
+                    webView.loadUrl(url);
+                }
+            });
+        }
+
         @JavascriptInterface
         public void requestNotifications() {
             runOnUiThread(() -> {
@@ -126,6 +154,65 @@ public class MainActivity extends Activity {
                 android.app.NotificationManager manager = (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
                 manager.notify((int) (System.currentTimeMillis() & 0x7fffffff), notification);
             });
+        }
+    }
+
+    private void beginDiscovery() {
+        if (nsdManager == null || discoveryListener != null) return;
+        nearby.clear();
+        discoveryListener = new NsdManager.DiscoveryListener() {
+            @Override public void onDiscoveryStarted(String type) { publishNearby(); }
+            @Override public void onServiceFound(NsdServiceInfo service) {
+                if (!SERVICE_TYPE.equals(service.getServiceType())) return;
+                String ownName = "eShareX-" + Build.MODEL.replaceAll("[^A-Za-z0-9-]", "");
+                if (ownName.equals(service.getServiceName())) return;
+                nsdManager.resolveService(service, new NsdManager.ResolveListener() {
+                    @Override public void onResolveFailed(NsdServiceInfo info, int errorCode) {}
+                    @Override public void onServiceResolved(NsdServiceInfo info) {
+                        String host = info.getHost() == null ? "" : info.getHost().getHostAddress();
+                        if (!host.isEmpty() && !host.equals("127.0.0.1")) {
+                            synchronized (nearby) { nearby.put(info.getServiceName(), info); }
+                            publishNearby();
+                        }
+                    }
+                });
+            }
+            @Override public void onServiceLost(NsdServiceInfo service) {
+                synchronized (nearby) { nearby.remove(service.getServiceName()); }
+                publishNearby();
+            }
+            @Override public void onDiscoveryStopped(String type) {}
+            @Override public void onStartDiscoveryFailed(String type, int errorCode) { stopDiscovery(); }
+            @Override public void onStopDiscoveryFailed(String type, int errorCode) { stopDiscovery(); }
+        };
+        try { nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener); }
+        catch (Exception ignored) { discoveryListener = null; }
+    }
+
+    private void publishNearby() {
+        if (webView == null) return;
+        List<Map<String, String>> items = new ArrayList<>();
+        synchronized (nearby) {
+            for (NsdServiceInfo info : nearby.values()) {
+                String host = info.getHost() == null ? "" : info.getHost().getHostAddress();
+                if (host.isEmpty()) continue;
+                Map<String, String> item = new HashMap<>();
+                item.put("name", info.getServiceName());
+                item.put("host", host);
+                item.put("port", String.valueOf(info.getPort()));
+                items.add(item);
+            }
+        }
+        org.json.JSONArray arr = new org.json.JSONArray();
+        for (Map<String, String> item : items) arr.put(new org.json.JSONObject(item));
+        String payload = org.json.JSONObject.quote(arr.toString());
+        runOnUiThread(() -> { if (webView != null) webView.evaluateJavascript("window.onNearbyDevices && window.onNearbyDevices(" + payload + ")", null); });
+    }
+
+    private void stopDiscovery() {
+        if (nsdManager != null && discoveryListener != null) {
+            try { nsdManager.stopServiceDiscovery(discoveryListener); } catch (Exception ignored) {}
+            discoveryListener = null;
         }
     }
 
@@ -179,6 +266,7 @@ public class MainActivity extends Activity {
             fileCallback = null;
         }
         handler.removeCallbacksAndMessages(null);
+        stopDiscovery();
         executor.shutdownNow();
         if (webView != null) {
             webView.stopLoading();

@@ -129,3 +129,13 @@ Because the old `app/esharex.keystore` was included in a distributed source ZIP,
 - Removed visible Logout, Install App and Export controls.
 - Android landing page shows the host IP and QR code; browser landing page hides those details.
 - Android notification permission is requested once after the first app page is ready.
+
+
+## Version 2.4.0
+
+- Improved local IPv4 address selection and explicit unavailable-state reporting.
+- Added a collapsible first-use guide for router and hotspot connections.
+- Added Android NSD service advertising and nearby eShareX discovery; selecting a discovered host opens its shared web room.
+- Manual IP and QR connection remain available.
+
+Note: automatic host migration/session replication is not included in this release. Nearby discovery depends on the router or hotspot allowing local device-to-device traffic.
