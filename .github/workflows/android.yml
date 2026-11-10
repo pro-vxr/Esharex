@@ -45,6 +45,7 @@ jobs:
             exit 1
           fi
           echo "$SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/esharex-release.jks"
+          sha256sum "$RUNNER_TEMP/esharex-release.jks"
           echo "EShareX_STORE_FILE=$RUNNER_TEMP/esharex-release.jks" >> "$GITHUB_ENV"
           echo "EShareX_STORE_PASSWORD=$SIGNING_STORE_PASSWORD" >> "$GITHUB_ENV"
           echo "EShareX_KEY_ALIAS=$SIGNING_KEY_ALIAS" >> "$GITHUB_ENV"
