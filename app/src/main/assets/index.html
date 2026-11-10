@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#090b10"><meta name="description" content="Share files and chat with people on your local network.">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" type="image/png" href="/icon-192.png">
 <title>eShareX — Local sharing, together</title>
@@ -112,6 +112,16 @@
 .guide-step{display:flex;gap:13px;padding:15px 0;border-top:1px solid var(--line);align-items:flex-start}
 .guide-step>b{flex:0 0 30px;height:30px;border-radius:10px;background:var(--accent);color:#111;display:grid;place-items:center}
 .guide-step strong{font-size:14px}.guide-note{padding:12px;border-radius:12px;background:#b8f36b12;color:var(--accent);font-size:12px;line-height:1.5}
+
+/* Prevent accidental page zoom, text selection and tap highlights. Keep editing controls selectable. */
+html,body,.app,.topbar,.layout,.page,.panel,.hero,.hero-art,.brand,.nav,.nav a,.btn,.iconbtn,.menu,.footer,.chat-context,.bubble,.msg-meta,.person,.friend-card,.modalbox,.guide,.guide-step,.guide-note{
+ -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
+}
+input,textarea,[contenteditable="true"],.ip-text, .selectable{
+ -webkit-user-select:text;user-select:text;-webkit-touch-callout:default;
+}
+button,a{ -webkit-tap-highlight-color:transparent; }
+
 </style>
 </head>
 <body>
@@ -135,7 +145,6 @@
   <div class="hero-copy"><div class="eyebrow">Your local network, connected</div><h1>Share freely.<br><span style="color:var(--accent)">Stay connected.</span></h1><p>Chat, send files and connect with people on the same Wi-Fi network. No cloud account required to get started.</p><div class="home-stats"><div><strong id="memberCount">0</strong>Members</div><div><strong>Local</strong>Network-first</div><div><strong>Private</strong>By conversation</div></div></div>
   <div class="hero-card"><div class="hero-art"><svg viewBox="0 0 120 120" fill="none"><rect x="24" y="25" width="72" height="70" rx="19" stroke="#b8f36b" stroke-width="5"/><path d="M40 52h40M40 67h28" stroke="#b8f36b" stroke-width="5" stroke-linecap="round"/><circle cx="85" cy="82" r="15" fill="#b8f36b"/><path d="m79 82 4 4 8-9" stroke="#10150b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="field"><label>Your display name</label><input id="joinName" maxlength="32" placeholder="Choose a name"></div><div class="joinrow"><button class="btn" onclick="joinNetwork()">Join eShareX</button></div><div id="ipUnder" class="ip-under"></div><div id="homeConnection" class="home-connection"><div class="ip-label">LOCAL CONNECTION</div><div id="homeIp" class="home-ip">Finding local address…</div><button class="copy-ip" onclick="copyHomeIp()">Copy address</button></div><p style="font-size:11px;margin:12px 0 0;text-align:center">Everyone must be connected to the same local network.</p></div>
  </div>
-</section>
 <section class="guide panel" id="howToUse">
  <div class="guide-head"><div><div class="eyebrow">GETTING STARTED</div><h2>How to use eShareX</h2><p>Connect nearby devices and share on the same local network.</p></div><button class="btn secondary" id="guideToggle" onclick="toggleGuide()">Show guide</button></div>
  <div class="guide-content" id="guideContent" hidden>
@@ -144,6 +153,7 @@
   <div class="guide-step"><b>3</b><div><strong>Join from another device</strong><p>Android users can select a nearby eShareX device when discovery is available. Browser users can enter the host address or scan its QR code.</p></div></div>
   <div class="guide-note">No mobile data or internet is required for local communication. Your router or hotspot must allow devices to communicate with each other.</div>
  </div>
+</section>
 </section>
 <section class="page" id="chatPage">
  <div class="chat-context">
@@ -250,7 +260,7 @@ $('dmInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.
 document.addEventListener('click',e=>{if(!e.target.closest('.top-actions')&&!e.target.closest('.menu'))$('moreMenu').classList.remove('show')});
 if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('/sw.js').catch(()=>{});
 async function loadLandingConnection(){try{const info=await api('/api/server-info');serverAddress=info.address;if(info.available===false||!info.ip||info.ip==='127.0.0.1'){$('homeIp').textContent='Connect to Wi-Fi or turn on your hotspot';return}$('homeIp').textContent=info.address;if($('homeQrImage'))$('homeQrImage').src='/api/qr?text='+encodeURIComponent(info.address)}catch(_){$('homeIp').textContent='Waiting for local network…'}}
-function toggleGuide(){const c=$('guideContent'),b=$('guideToggle');c.hidden=!c.hidden;b.textContent=c.hidden?'Show guide':'Hide guide'}
+function toggleGuide(){const c=$('guideContent'),b=$('guideToggle');c.hidden=!c.hidden;b.textContent=c.hidden?'Show':'Hide'}
 function renderNearbyDevices(items){const box=$('nearbyDevices'),status=$('nearbyStatus');box.innerHTML='';if(!items||!items.length){status.textContent='No other eShareX devices found yet. Make sure both devices are on the same Wi-Fi or hotspot.';return}status.textContent=items.length+' device(s) found';items.forEach(d=>{const row=document.createElement('div');row.className='nearby-device';const info=document.createElement('div');const name=document.createElement('strong');name.textContent=d.name||'eShareX device';const addr=document.createElement('small');addr.textContent=d.host+':'+d.port;info.append(name,addr);const btn=document.createElement('button');btn.textContent='Join';btn.onclick=()=>{if(window.AndroidBridge&&AndroidBridge.joinNearby)AndroidBridge.joinNearby('http://'+d.host+':'+d.port+'/')};row.append(info,btn);box.append(row)})}
 function startNearbyDiscovery(){if(!isNative||!window.AndroidBridge||!AndroidBridge.startDiscovery)return;$('nearbyPanel').hidden=false;AndroidBridge.startDiscovery()}
 window.onNearbyDevices=function(json){try{renderNearbyDevices(JSON.parse(json))}catch(_){}}
