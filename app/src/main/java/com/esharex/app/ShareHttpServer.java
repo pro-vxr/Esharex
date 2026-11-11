@@ -40,13 +40,14 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.4.0"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.4.5"));
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
                 return json(new JSONObject().put("ip", ip).put("port", 8080).put("available", !"127.0.0.1".equals(ip)).put("address", "http://" + ip + ":8080"));
             }
             if ("/api/qr".equals(uri) && Method.GET.equals(method)) return qrCode(session);
             if ("/api/register".equals(uri) && Method.POST.equals(method)) return register(session);
+            if ("/api/leave".equals(uri) && Method.POST.equals(method)) return leave(session);
             if ("/api/users".equals(uri) && Method.GET.equals(method)) return listUsers(session);
             if ("/api/presence".equals(uri) && Method.POST.equals(method)) return heartbeat(session);
             if ("/api/messages".equals(uri) && Method.GET.equals(method)) return json(arrayCopy(messages));
@@ -96,6 +97,15 @@ public class ShareHttpServer extends NanoHTTPD {
         users.put(id, user); saveUsers();
         return json(new JSONObject().put("success", true).put("user", user));
     }
+    private Response leave(IHTTPSession session) throws Exception {
+        JSONObject in = readBody(session);
+        String id = safeText(in.optString("id", ""), 80);
+        if (id.isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "Device ID is required");
+        users.remove(id);
+        saveUsers();
+        return json(new JSONObject().put("success", true).put("left", true));
+    }
+
     private Response heartbeat(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session); String id = in.optString("id", "");
         JSONObject user = users.get(id);
