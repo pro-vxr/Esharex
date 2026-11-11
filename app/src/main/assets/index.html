@@ -202,10 +202,10 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
   <div class="composer">
    <input type="file" id="fileInput" hidden>
    <div class="reply-strip" id="generalReplyStrip" hidden><div class="reply-strip-copy"><strong id="generalReplyName"></strong><span id="generalReplyText"></span></div><button class="reply-cancel" onclick="cancelReply()" aria-label="Cancel reply">×</button></div>
-   <div class="composer-row"><div class="composer-field"><textarea id="generalInput" rows="1" placeholder="Type a message..." aria-label="Message"></textarea><button class="attach-inline" onclick="chooseAttachment()" title="Attach media" aria-label="Attach media">＋</button></div><button class="send" onclick="sendGeneral()" aria-label="Send message">➤</button></div>
+   <div class="composer-row"><div class="composer-field"><textarea id="generalInput" rows="1" inputmode="text" enterkeyhint="enter" autocapitalize="sentences" autocomplete="off" placeholder="Type a message..." aria-label="Message"></textarea><button class="attach-inline" onclick="chooseAttachment()" title="Attach media" aria-label="Attach media">＋</button></div><button class="send" onclick="sendGeneral()" aria-label="Send message">➤</button></div>
   </div>
  </div><aside class="panel sidepanel"><h3>People online</h3><div id="onlineList"></div></aside></div>
-<div id="dmPanel" class="panel chat-panel" style="display:none"><div class="chathead"><strong id="dmTitle">Private conversation</strong><button class="iconbtn" onclick="closeDM()">×</button></div><div class="messages" id="dmMessages"></div><div class="composer"><div class="reply-strip" id="dmReplyStrip" hidden><div class="reply-strip-copy"><strong id="dmReplyName"></strong><span id="dmReplyText"></span></div><button class="reply-cancel" onclick="cancelReply()" aria-label="Cancel reply">×</button></div><div class="composer-row"><div class="composer-field"><textarea id="dmInput" rows="1" placeholder="Type a message..." aria-label="Private message"></textarea><button class="attach-inline" onclick="chooseAttachment()" title="Attach media" aria-label="Attach media">＋</button></div><button class="send" onclick="sendDM()" aria-label="Send message">➤</button></div></div></div>
+<div id="dmPanel" class="panel chat-panel" style="display:none"><div class="chathead"><strong id="dmTitle">Private conversation</strong><button class="iconbtn" onclick="closeDM()">×</button></div><div class="messages" id="dmMessages"></div><div class="composer"><div class="reply-strip" id="dmReplyStrip" hidden><div class="reply-strip-copy"><strong id="dmReplyName"></strong><span id="dmReplyText"></span></div><button class="reply-cancel" onclick="cancelReply()" aria-label="Cancel reply">×</button></div><div class="composer-row"><div class="composer-field"><textarea id="dmInput" rows="1" inputmode="text" enterkeyhint="enter" autocapitalize="sentences" autocomplete="off" placeholder="Type a message..." aria-label="Private message"></textarea><button class="attach-inline" onclick="chooseAttachment()" title="Attach media" aria-label="Attach media">＋</button></div><button class="send" onclick="sendDM()" aria-label="Send message">➤</button></div></div></div>
 </section>
 <section class="page" id="friendsPage">
  <div class="chat-context"><span class="context-icon">♧</span><div class="context-title"><strong>Friends</strong><small id="friendsOnline">0 online</small></div><button class="iconbtn" onclick="toggleMenu()">⋮</button></div>
@@ -259,7 +259,7 @@ function renderMessage(m,container,mine){
  actions.append(copy,reply);
  if(mine&&m.type!=='file'){const edit=document.createElement('button');edit.title='Edit';edit.textContent='✎';edit.onclick=()=>editMessage(m);actions.append(edit)}
  row.appendChild(actions);
- let touchX=0,touchY=0;row.addEventListener('touchstart',e=>{if(e.target.closest('button,a,input,textarea'))return;touchX=e.changedTouches[0].clientX;touchY=e.changedTouches[0].clientY},{passive:true});row.addEventListener('touchend',e=>{if(e.target.closest('button,a,input,textarea'))return;const dx=e.changedTouches[0].clientX-touchX,dy=e.changedTouches[0].clientY-touchY;if(dx>70&&dx>Math.abs(dy)*1.5)setReplyTarget(m)},{passive:true});
+ let touchX=0,touchY=0,touchStarted=false;row.addEventListener('touchstart',e=>{const t=e.changedTouches[0];if(e.target.closest('button,a,input,textarea')){touchStarted=false;return}touchX=t.clientX;touchY=t.clientY;touchStarted=true},{passive:true,capture:true});row.addEventListener('touchend',e=>{if(!touchStarted)return;touchStarted=false;const t=e.changedTouches[0],dx=t.clientX-touchX,dy=t.clientY-touchY;if(dx>75&&dx>Math.abs(dy)*1.35)setReplyTarget(m)},{passive:true,capture:true});
  container.appendChild(row);
 }
 function fileIcon(mime,name){if((mime||'').includes('pdf')||/\.pdf$/i.test(name||''))return '📄';if(/\.(zip|rar|7z)$/i.test(name||''))return '🗜';if((mime||'').startsWith('audio/'))return '🎵';return '📎'}
@@ -268,7 +268,21 @@ function cancelReply(){replyTarget=null;$('generalReplyStrip').hidden=true;$('dm
 function editMessage(m){editingMessage=m;$('editText').value=m.text||'';$('editModal').classList.add('show');setTimeout(()=>$('editText').focus(),100)}
 function closeEdit(){$('editModal').classList.remove('show');editingMessage=null}
 async function saveEdit(){if(!editingMessage)return;const updated=$('editText').value.trim();if(!updated)return toast('Message cannot be empty');const m=editingMessage;try{const isDM=!!m.from;await api(isDM?'/api/dm/edit':'/api/chat/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(isDM?{id:m.id,from:deviceId,text:updated}:{id:m.id,userId:deviceId,text:updated})});closeEdit();if(isDM){seenDM.clear();await loadDM(true)}else{seenGeneral.clear();await loadGeneral(true)}toast('Message updated')}catch(_){toast('Could not edit message')}}
-function updateMessageList(data,box,mineFn,seen){const firstRender=box.dataset.initialized!=='1';const distanceFromBottom=box.scrollHeight-box.clientHeight-box.scrollTop;const wasNearBottom=distanceFromBottom<90;if(!data.length){if(!box.children.length)box.innerHTML='<div class="empty">No messages yet. Start the conversation.</div>';box.dataset.initialized='1';return}const empty=box.querySelector('.empty');if(empty)empty.remove();data.forEach(m=>{const id=m.id||'';const existing=[...box.children].find(el=>el.dataset&&el.dataset.messageId===id);const signature=JSON.stringify(m);if(existing){if(existing.dataset.signature!==signature){const replacement=document.createElement('div');renderMessage(m,replacement,mineFn(m));existing.replaceWith(replacement.firstElementChild)}}else{renderMessage(m,box,mineFn(m));if(!seen.has(id))seen.add(id)}});box.dataset.initialized='1';if(firstRender||wasNearBottom)box.scrollTop=box.scrollHeight}
+function updateMessageList(data,box,mineFn,seen){
+ const firstRender=box.dataset.initialized!=='1';
+ const distanceFromBottom=box.scrollHeight-box.clientHeight-box.scrollTop;
+ const wasNearBottom=distanceFromBottom<28;
+ if(!data.length){if(!box.children.length)box.innerHTML='<div class="empty">No messages yet. Start the conversation.</div>';box.dataset.initialized='1';return}
+ const empty=box.querySelector('.empty');if(empty)empty.remove();
+ const oldTop=box.scrollTop,oldHeight=box.scrollHeight;
+ data.forEach(m=>{const id=m.id||'';const existing=[...box.children].find(el=>el.dataset&&el.dataset.messageId===id);const signature=JSON.stringify(m);if(existing){if(existing.dataset.signature!==signature){const replacement=document.createElement('div');renderMessage(m,replacement,mineFn(m));existing.replaceWith(replacement.firstElementChild)}}else{renderMessage(m,box,mineFn(m));if(!seen.has(id))seen.add(id)}});
+ box.dataset.initialized='1';
+ if(firstRender){box.scrollTop=box.scrollHeight;box.dataset.userReading='0'}
+ else if(wasNearBottom&&box.dataset.userReading!=='1'){box.scrollTop=box.scrollHeight}
+ else {const delta=box.scrollHeight-oldHeight;box.scrollTop=oldTop+Math.max(0,delta);box.dataset.userReading='1'}
+}
+// Keep polling from pulling the reader back to the newest message.
+['generalMessages','dmMessages'].forEach(id=>{const box=document.getElementById(id);if(!box)return;box.addEventListener('scroll',()=>{const gap=box.scrollHeight-box.clientHeight-box.scrollTop;if(gap>36)box.dataset.userReading='1';else box.dataset.userReading='0'},{passive:true})});
 async function loadGeneral(force=false){if(!myName)return;try{const data=await api('/api/messages');const box=$('generalMessages');const fresh=data.filter(m=>!seenGeneral.has(m.id));updateMessageList(data,box,m=>m.userId===deviceId||m.username===myName,seenGeneral);fresh.forEach(m=>{if(m.userId!==deviceId&&document.hidden){const title='eShareX · '+(m.username||'New message'),body=messagePreview(m);if(isNative&&window.AndroidBridge)window.AndroidBridge.showNotification(title,body);else if('Notification'in window&&Notification.permission==='granted')new Notification(title,{body})}})}catch(_){}}
 async function sendGeneral(){const text=$('generalInput').value.replace(/\r\n?/g,'\n').trim();if(!text)return;try{await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,userId:deviceId,username:myName,replyTo:replyTarget&&replyTarget._conversation==='general'?{text:messagePreview(replyTarget),messageId:replyTarget.id,username:replyTarget.username||replyTarget.fromName||''}:null})});$('generalInput').value='';$('generalInput').style.height='40px';cancelReply();await loadGeneral()}catch(_){toast('Message could not be sent')}}
 async function loadPeople(){if(!myName)return;try{let users=await api('/api/users?id='+encodeURIComponent(deviceId));let online=users.filter(u=>u.online);$('memberCount').textContent=users.length;$('chatOnline').textContent=online.length+' online';$('friendsOnline').textContent=online.length+' online';let others=users.filter(u=>u.id!==deviceId);$('onlineList').innerHTML='';$('friendsGrid').innerHTML='';if(!others.length)$('friendsGrid').innerHTML='<div class="panel empty">You are the first one here. Invite someone to join your network.</div>';others.forEach(u=>{let row=document.createElement('div');row.className='person';row.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><span class="dot"></span>';row.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();row.querySelector('strong').textContent=u.name;row.querySelector('small').textContent=u.online?'Online':'Offline';row.querySelector('.dot').classList.toggle('on',u.online);$('onlineList').appendChild(row);let card=document.createElement('div');card.className='panel friend-card';card.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><button class="btn">Message</button>';card.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();card.querySelector('strong').textContent=u.name;card.querySelector('small').textContent=u.online?'● Online':'○ Offline';card.querySelector('small').style.color=u.online?'var(--accent)':'var(--muted)';card.querySelector('button').onclick=()=>openDM(u);$('friendsGrid').appendChild(card)})}catch(_){}}
@@ -296,6 +310,7 @@ $('generalInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey
 $('dmInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'});
 document.addEventListener('click',e=>{if(!e.target.closest('.top-actions')&&!e.target.closest('.menu'))$('moreMenu').classList.remove('show')});
 
+['generalInput','dmInput'].forEach(id=>{const input=document.getElementById(id);if(!input)return;input.addEventListener('focus',()=>{const box=document.getElementById(id==='dmInput'?'dmMessages':'generalMessages');if(box){box.dataset.userReading='0';requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight})}})});
 function updateAppViewportHeight(){
  const h=window.visualViewport?window.visualViewport.height:window.innerHeight;
  document.documentElement.style.setProperty('--app-height',Math.round(h)+'px');
@@ -329,12 +344,12 @@ if(myName){startPresence()}route();if(location.pathname==='/'&&!myName){loadLand
 .bubble.media-bubble .filecard{width:100%}
 .bubble.media-bubble .filecard-name{font-weight:650}
 .msgrow .msg-actions button[aria-label="Reply to this message"]{min-width:30px;min-height:27px;touch-action:manipulation}
-body.conversation-mode .messages{padding-bottom:32px;scroll-padding-bottom:32px}
+body.conversation-mode .messages{padding-bottom:8px;scroll-padding-bottom:8px}
 @media(max-width:600px){
  .bubble.media-bubble{max-width:min(68%,290px);padding:5px}
  .bubble.media-bubble img,.bubble.media-bubble video{max-width:min(100%,230px);max-height:230px}
  .filecard{padding:8px 9px;gap:8px}
- body.conversation-mode .messages{padding-bottom:40px;scroll-padding-bottom:40px}
+ body.conversation-mode .messages{padding-bottom:8px;scroll-padding-bottom:8px}
 }
 </style>
 <script>

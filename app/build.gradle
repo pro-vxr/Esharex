@@ -11,7 +11,7 @@ android {
         minSdk 24
         targetSdk 33
         versionCode 12
-        versionName '2.4.3'
+        versionName '2.4.4'
     }
 
     compileOptions {
