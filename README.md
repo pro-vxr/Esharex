@@ -1,4 +1,4 @@
-# eShareX 2.4.2
+# eShareX 2.4.3
 
 UI and mobile layout maintenance release.
 
@@ -9,4 +9,4 @@ UI and mobile layout maintenance release.
 - Use plain filenames for document/file attachments instead of emoji/paperclip glyphs.
 - Keep the landing-page guide toggle labels to `Show` and `Hide`.
 
-Build version: 2.4.2 (versionCode 11).
+Build version: 2.4.3 (versionCode 11).

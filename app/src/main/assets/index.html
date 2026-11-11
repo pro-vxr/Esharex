@@ -243,9 +243,10 @@ function renderMessage(m,container,mine){
  if(!mine){const n=document.createElement('div');n.className='msgname';n.textContent=m.username||m.fromName||'Member';b.appendChild(n)}
  if(m.replyTo){const q=document.createElement('div');q.className='quoted-message';q.textContent='↳ '+(m.replyTo.text||m.replyTo.filename||'Attachment');b.appendChild(q)}
  if(m.type==='file'){
+  b.classList.add('media-bubble');
   if((m.mime||'').startsWith('image/')){const im=document.createElement('img');im.src=m.url;im.alt=m.filename||'Shared image';im.onclick=()=>openMedia('img',m.url);b.appendChild(im)}
   else if((m.mime||'').startsWith('video/')){const v=document.createElement('video');v.src=m.url;v.controls=true;v.preload='metadata';b.appendChild(v)}
-  else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.target='_blank';link.download=m.filename||'';const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';link.append(meta);b.appendChild(link)}
+  else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.target='_blank';link.download=m.filename||'';const icon=document.createElement('span');icon.className='filecard-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';link.append(icon,meta);b.appendChild(link)}
   if(m.caption){const c=document.createElement('div');c.textContent=m.caption;b.appendChild(c)}
  }else{const t=document.createElement('div');t.className='message-text';t.textContent=m.text||'';b.appendChild(t)}
  row.appendChild(b);
@@ -254,7 +255,7 @@ function renderMessage(m,container,mine){
  const tm=document.createElement('div');tm.className='msgtime';tm.textContent=new Date(m.timestamp||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:true});meta.appendChild(tm);row.appendChild(meta);
  const actions=document.createElement('div');actions.className='msg-actions';
  const copy=document.createElement('button');copy.title='Copy';copy.textContent='▢';copy.onclick=()=>navigator.clipboard?.writeText(messagePreview(m)).then(()=>toast('Copied')).catch(()=>toast('Copy unavailable'));
- const reply=document.createElement('button');reply.title='Reply';reply.textContent='↩';reply.onclick=()=>setReplyTarget(m);
+ const reply=document.createElement('button');reply.title='Reply';reply.textContent='↩';reply.setAttribute('aria-label','Reply to this message');reply.onclick=(e)=>{e.preventDefault();e.stopPropagation();setReplyTarget(m)};
  actions.append(copy,reply);
  if(mine&&m.type!=='file'){const edit=document.createElement('button');edit.title='Edit';edit.textContent='✎';edit.onclick=()=>editMessage(m);actions.append(edit)}
  row.appendChild(actions);
@@ -315,3 +316,43 @@ if(myName){startPresence()}route();if(location.pathname==='/'&&!myName){loadLand
 // Enter inserts a newline; the send button sends the message.
 </script>
 </body></html>
+<style>
+/* 2.4.3 media presentation and reply fixes */
+.filecard{display:flex;align-items:center;gap:9px;max-width:100%;padding:9px 10px;border-radius:10px;background:#0b1119;color:#f3f6fb!important;min-width:0}
+.filecard-icon{display:flex;flex:0 0 22px;align-items:center;justify-content:center;color:var(--accent)}
+.filecard-name{color:#f3f6fb!important;font-size:12px;line-height:1.35;min-width:0;overflow-wrap:anywhere;word-break:break-word}
+.msgrow.mine .filecard{background:#0b1119;color:#f3f6fb!important;border-color:#ffffff20}
+.msgrow.mine .filecard-name{color:#f3f6fb!important}
+.bubble.media-bubble{width:fit-content;max-width:min(72%,340px);padding:6px;border-radius:14px}
+.bubble.media-bubble img,.bubble.media-bubble video{display:block;width:auto;max-width:min(100%,260px);max-height:260px;margin:0;border-radius:9px;object-fit:contain}
+.msgrow.mine .bubble.media-bubble{background:#17202b;border:1px solid #2a3544;color:var(--text);border-bottom-right-radius:5px}
+.bubble.media-bubble .filecard{width:100%}
+.bubble.media-bubble .filecard-name{font-weight:650}
+.msgrow .msg-actions button[aria-label="Reply to this message"]{min-width:30px;min-height:27px;touch-action:manipulation}
+body.conversation-mode .messages{padding-bottom:32px;scroll-padding-bottom:32px}
+@media(max-width:600px){
+ .bubble.media-bubble{max-width:min(68%,290px);padding:5px}
+ .bubble.media-bubble img,.bubble.media-bubble video{max-width:min(100%,230px);max-height:230px}
+ .filecard{padding:8px 9px;gap:8px}
+ body.conversation-mode .messages{padding-bottom:40px;scroll-padding-bottom:40px}
+}
+</style>
+<script>
+/* Keep the newest message visible when the mobile keyboard changes the viewport. */
+(function(){
+ let lastHeight=window.visualViewport?window.visualViewport.height:window.innerHeight;
+ function keepLatestVisible(){
+   const active=document.activeElement;
+   if(!active || !['generalInput','dmInput'].includes(active.id)) return;
+   const box=active.id==='dmInput'?document.getElementById('dmMessages'):document.getElementById('generalMessages');
+   if(box) requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight;});
+ }
+ if(window.visualViewport){
+   window.visualViewport.addEventListener('resize',()=>{
+     const h=window.visualViewport.height;
+     if(h<lastHeight-40) keepLatestVisible();
+     lastHeight=h;
+   },{passive:true});
+ }
+})();
+</script>
