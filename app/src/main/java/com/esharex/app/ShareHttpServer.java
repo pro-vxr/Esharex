@@ -50,6 +50,9 @@ public class ShareHttpServer extends NanoHTTPD {
             if ("/api/leave".equals(uri) && Method.POST.equals(method)) return leave(session);
             if ("/api/users".equals(uri) && Method.GET.equals(method)) return listUsers(session);
             if ("/api/presence".equals(uri) && Method.POST.equals(method)) return heartbeat(session);
+            if ("/api/unread".equals(uri) && Method.GET.equals(method)) return unreadSummary(session);
+            if ("/api/read".equals(uri) && Method.POST.equals(method)) return markRead(session);
+            if ("/api/notifications".equals(uri) && Method.GET.equals(method)) return notificationEvents(session);
             if ("/api/messages".equals(uri) && Method.GET.equals(method)) return json(arrayCopy(messages));
             if ("/api/chat".equals(uri) && Method.POST.equals(method)) return handleChat(session);
             if ("/api/chat/edit".equals(uri) && Method.POST.equals(method)) return editChatMessage(session);
@@ -93,7 +96,12 @@ public class ShareHttpServer extends NanoHTTPD {
         if (id.isEmpty() || name.isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "Device ID and name are required");
         JSONObject user = users.get(id);
         if (user == null) user = new JSONObject().put("id", id).put("joinedAt", System.currentTimeMillis());
-        user.put("name", name).put("lastSeen", System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        long previousSeen = user.optLong("lastSeen", 0);
+        user.put("name", name).put("lastSeen", now);
+        // A returning user starts a fresh notification window: offline messages remain unread,
+        // but are not replayed as a burst of push-style alerts.
+        if (previousSeen == 0 || now - previousSeen > 45000L) user.put("notificationCursor", now);
         users.put(id, user); saveUsers();
         return json(new JSONObject().put("success", true).put("user", user));
     }
@@ -101,8 +109,12 @@ public class ShareHttpServer extends NanoHTTPD {
         JSONObject in = readBody(session);
         String id = safeText(in.optString("id", ""), 80);
         if (id.isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "Device ID is required");
-        users.remove(id);
-        saveUsers();
+        JSONObject user = users.get(id);
+        if (user != null) {
+            user.put("lastSeen", 0);
+            user.put("notificationCursor", System.currentTimeMillis());
+            saveUsers();
+        }
         return json(new JSONObject().put("success", true).put("left", true));
     }
 
@@ -121,14 +133,93 @@ public class ShareHttpServer extends NanoHTTPD {
     private Response listUsers(IHTTPSession session) throws Exception {
         String self = session.getParms().get("id"); JSONArray arr = new JSONArray(); long now = System.currentTimeMillis();
         for (JSONObject u : users.values()) {
-            JSONObject item = new JSONObject(u.toString());
-            long seen = item.optLong("lastSeen", 0);
-            item.put("online", now - seen < 45000);
-            item.put("self", item.optString("id").equals(self));
+            long seen = u.optLong("lastSeen", 0);
+            JSONObject item = new JSONObject().put("id", u.optString("id"))
+                .put("name", u.optString("name", "Member"))
+                .put("joinedAt", u.optLong("joinedAt", 0))
+                .put("lastSeen", seen)
+                .put("online", seen > 0 && now - seen < 45000)
+                .put("self", u.optString("id").equals(self));
             arr.put(item);
         }
         return json(arr);
     }
+    private Response unreadSummary(IHTTPSession session) throws Exception {
+        String me = safeText(session.getParms().get("id"), 80);
+        JSONObject user = users.get(me);
+        if (user == null) return jsonError(Response.Status.UNAUTHORIZED, "Register before checking unread messages");
+        long generalReadAt = user.optLong("generalReadAt", 0);
+        int generalUnread = 0;
+        for (JSONObject msg : messages) {
+            if (!me.equals(msg.optString("userId")) && msg.optLong("timestamp", 0) > generalReadAt) generalUnread++;
+        }
+        JSONObject dmReadAt = user.optJSONObject("dmReadAt");
+        if (dmReadAt == null) dmReadAt = new JSONObject();
+        JSONObject direct = new JSONObject();
+        int totalDM = 0;
+        for (JSONObject msg : directMessages) {
+            if (!me.equals(msg.optString("to"))) continue;
+            String peer = msg.optString("from");
+            long readAt = dmReadAt.optLong(peer, 0);
+            if (msg.optLong("timestamp", 0) > readAt) {
+                direct.put(peer, direct.optInt(peer, 0) + 1);
+                totalDM++;
+            }
+        }
+        return json(new JSONObject().put("general", generalUnread).put("direct", direct)
+            .put("total", generalUnread + totalDM));
+    }
+
+    private Response markRead(IHTTPSession session) throws Exception {
+        JSONObject in = readBody(session);
+        String me = safeText(in.optString("id", ""), 80);
+        String peer = safeText(in.optString("peer", ""), 80);
+        JSONObject user = users.get(me);
+        if (user == null) return jsonError(Response.Status.UNAUTHORIZED, "Register before marking messages read");
+        long now = System.currentTimeMillis();
+        if (peer.isEmpty()) user.put("generalReadAt", now);
+        else {
+            JSONObject readAt = user.optJSONObject("dmReadAt");
+            if (readAt == null) readAt = new JSONObject();
+            readAt.put(peer, now);
+            user.put("dmReadAt", readAt);
+        }
+        saveUsers();
+        return json(new JSONObject().put("success", true).put("readAt", now));
+    }
+
+    private Response notificationEvents(IHTTPSession session) throws Exception {
+        String me = safeText(session.getParms().get("id"), 80);
+        JSONObject user = users.get(me);
+        if (user == null) return jsonError(Response.Status.UNAUTHORIZED, "Register before checking notifications");
+        long now = System.currentTimeMillis();
+        long cursor = user.optLong("notificationCursor", now);
+        JSONArray events = new JSONArray();
+        // This endpoint is polled only by an active client. Registration advances the cursor
+        // after a long absence, preserving unread counts without replaying offline alerts.
+        for (JSONObject msg : messages) {
+                long ts = msg.optLong("timestamp", 0);
+                if (ts > cursor && !me.equals(msg.optString("userId"))) {
+                    events.put(new JSONObject().put("kind", "general").put("id", msg.optString("id"))
+                        .put("sender", msg.optString("username", "General chat"))
+                        .put("text", msg.optString("text", msg.optString("caption", "New attachment")))
+                        .put("timestamp", ts));
+                }
+            }
+        for (JSONObject msg : directMessages) {
+            long ts = msg.optLong("timestamp", 0);
+            if (ts > cursor && me.equals(msg.optString("to"))) {
+                events.put(new JSONObject().put("kind", "direct").put("id", msg.optString("id"))
+                    .put("peer", msg.optString("from")).put("sender", msg.optString("fromName", "Private message"))
+                    .put("text", msg.optString("text", msg.optString("caption", msg.optString("filename", "New attachment"))))
+                    .put("timestamp", ts));
+            }
+        }
+        user.put("notificationCursor", now);
+        saveUsers();
+        return json(events);
+    }
+
     private Response handleChat(IHTTPSession session) throws Exception {
         JSONObject input = readBody(session);
         String text = safeMessageText(input.optString("text", ""), 4000);

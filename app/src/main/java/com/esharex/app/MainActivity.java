@@ -1,6 +1,7 @@
 package com.esharex.app;
 
 import android.app.Activity;
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.net.Uri;
 import android.net.nsd.NsdManager;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 public class MainActivity extends Activity {
     private static final int FILE_REQUEST = 4102;
     private static final String HOME_URL = "http://127.0.0.1:8080/";
+    private String homeUrl = HOME_URL;
     private WebView webView;
     private ValueCallback<Uri[]> fileCallback;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -48,8 +50,18 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().setStatusBarColor(0xFF080808);
         getWindow().setNavigationBarColor(0xFF080808);
+        createMessageNotificationChannel();
 
+        android.content.SharedPreferences monitorPrefs = getSharedPreferences("esharex_notification_monitor", MODE_PRIVATE);
+        String savedHost = getSharedPreferences("esharex_connection", MODE_PRIVATE).getString("connected_url", "");
+        if (savedHost != null && savedHost.matches("http://[0-9.]+:8080/?")) homeUrl = savedHost.endsWith("/") ? savedHost : savedHost + "/";
         Intent service = new Intent(this, ShareServerService.class);
+        if (!HOME_URL.equals(homeUrl)) {
+            service.setAction(ShareServerService.ACTION_MONITOR);
+            service.putExtra(ShareServerService.EXTRA_BASE_URL, homeUrl.replaceAll("/+$", ""));
+            service.putExtra(ShareServerService.EXTRA_USER_ID, monitorPrefs.getString("user_id", getStableDeviceId()));
+            service.putExtra(ShareServerService.EXTRA_USER_NAME, monitorPrefs.getString("user_name", "Member"));
+        }
         ContextCompat.startForegroundService(this, service);
 
         webView = new WebView(this);
@@ -64,10 +76,14 @@ public class MainActivity extends Activity {
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                deliverPendingNotificationTarget(getIntent());
+            }
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                 super.onReceivedError(view, errorCode, description, failingUrl);
-                if (failingUrl != null && failingUrl.startsWith(HOME_URL)) {
+                if (failingUrl != null && failingUrl.startsWith(homeUrl)) {
                     pageRequested = false;
                     waitForServerAndLoad();
                 }
@@ -98,6 +114,34 @@ public class MainActivity extends Activity {
     }
 
 
+    private void createMessageNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= 26) {
+            android.app.NotificationChannel channel = new android.app.NotificationChannel(
+                "esharex_messages", "eShareX messages", android.app.NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription("Alerts for new eShareX messages");
+            channel.enableVibration(true);
+            ((android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(channel);
+        }
+    }
+
+    private void deliverPendingNotificationTarget(Intent intent) {
+        if (intent == null || webView == null) return;
+        String peer = intent.getStringExtra("esharex_open_peer");
+        if (peer == null || peer.isEmpty()) return;
+        String title = intent.getStringExtra("esharex_open_title");
+        String js = "window.openNotificationConversation && window.openNotificationConversation(" +
+            org.json.JSONObject.quote(peer) + "," + org.json.JSONObject.quote(title == null ? "" : title) + ")";
+        webView.post(() -> webView.evaluateJavascript(js, null));
+        intent.removeExtra("esharex_open_peer");
+        intent.removeExtra("esharex_open_title");
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        deliverPendingNotificationTarget(intent);
+    }
+
     private String getStableDeviceId() {
         android.content.SharedPreferences prefs = getSharedPreferences("esharex_identity", MODE_PRIVATE);
         String id = prefs.getString("device_id", null);
@@ -122,10 +166,39 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 if (url != null && url.matches("http://[0-9.]+:8080/?")) {
                     stopDiscovery();
+                    homeUrl = url.endsWith("/") ? url : url + "/";
+                    getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().putString("connected_url", homeUrl).apply();
                     stopService(new Intent(MainActivity.this, ShareServerService.class));
-                    webView.loadUrl(url);
+                    webView.loadUrl(homeUrl);
                 }
             });
+        }
+
+        @JavascriptInterface
+        public void configureNotificationMonitor(String baseUrl, String userId, String userName) {
+            if (baseUrl == null || userId == null || !baseUrl.matches("https?://[A-Za-z0-9.\\-]+(:[0-9]{1,5})?")) return;
+            Intent monitor = new Intent(MainActivity.this, ShareServerService.class);
+            monitor.setAction(ShareServerService.ACTION_MONITOR);
+            monitor.putExtra(ShareServerService.EXTRA_BASE_URL, baseUrl);
+            monitor.putExtra(ShareServerService.EXTRA_USER_ID, userId);
+            monitor.putExtra(ShareServerService.EXTRA_USER_NAME, userName == null ? "Member" : userName);
+            monitor.putExtra(ShareServerService.EXTRA_READY, true);
+            ContextCompat.startForegroundService(MainActivity.this, monitor);
+        }
+
+        @JavascriptInterface
+        public void setActiveConversation(String kind, String peerId) {
+            getSharedPreferences("esharex_notification_monitor", MODE_PRIVATE).edit()
+                .putString("active_kind", kind == null ? "none" : kind)
+                .putString("active_peer", peerId == null ? "" : peerId).apply();
+        }
+
+        @JavascriptInterface
+        public void stopNotificationMonitor() {
+            getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().remove("connected_url").apply();
+            Intent stop = new Intent(MainActivity.this, ShareServerService.class);
+            stop.setAction(ShareServerService.ACTION_STOP_MONITOR);
+            startService(stop);
         }
 
         @JavascriptInterface
@@ -153,21 +226,32 @@ public class MainActivity extends Activity {
                 Intent send = new Intent(Intent.ACTION_SEND);
                 send.setType("text/plain");
                 send.putExtra(Intent.EXTRA_SUBJECT, "eShareX");
-                send.putExtra(Intent.EXTRA_TEXT, "Join me on eShareX: " + (url == null ? HOME_URL : url));
+                send.putExtra(Intent.EXTRA_TEXT, "Join me on eShareX: " + (url == null ? homeUrl : url));
                 startActivity(Intent.createChooser(send, "Share eShareX"));
             });
         }
 
         @JavascriptInterface
-        public void showNotification(String title, String body) {
+        public void showNotification(String title, String body, String peerId) {
             runOnUiThread(() -> {
                 if (Build.VERSION.SDK_INT >= 33 &&
                     checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) return;
-                android.app.Notification notification = new androidx.core.app.NotificationCompat.Builder(MainActivity.this, "esharex_host")
-                    .setSmallIcon(android.R.drawable.stat_sys_upload_done)
+                Intent open = new Intent(MainActivity.this, MainActivity.class);
+                open.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                if (peerId != null && !peerId.isEmpty()) open.putExtra("esharex_open_peer", peerId);
+                open.putExtra("esharex_open_title", title == null ? "" : title.replace("eShareX · ", ""));
+                int requestCode = peerId == null ? 0 : peerId.hashCode();
+                PendingIntent pending = PendingIntent.getActivity(MainActivity.this, requestCode, open,
+                    PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+                android.app.Notification notification = new androidx.core.app.NotificationCompat.Builder(MainActivity.this, "esharex_messages")
+                    .setSmallIcon(com.esharex.app.R.drawable.ic_esharex)
                     .setContentTitle(title == null ? "eShareX" : title)
                     .setContentText(body == null ? "New message" : body)
+                    .setStyle(new androidx.core.app.NotificationCompat.BigTextStyle().bigText(body == null ? "New message" : body))
+                    .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                    .setCategory(androidx.core.app.NotificationCompat.CATEGORY_MESSAGE)
                     .setAutoCancel(true)
+                    .setContentIntent(pending)
                     .build();
                 android.app.NotificationManager manager = (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
                 manager.notify((int) (System.currentTimeMillis() & 0x7fffffff), notification);
@@ -240,7 +324,7 @@ public class MainActivity extends Activity {
             boolean ready = false;
             HttpURLConnection connection = null;
             try {
-                connection = (HttpURLConnection) new URL("http://127.0.0.1:8080/api/health").openConnection();
+                connection = (HttpURLConnection) new URL(homeUrl + "api/health").openConnection();
                 connection.setConnectTimeout(1000);
                 connection.setReadTimeout(1000);
                 ready = connection.getResponseCode() == 200;
@@ -253,12 +337,22 @@ public class MainActivity extends Activity {
                 if (isFinishing() || webView == null) return;
                 if (serverReady && !pageRequested) {
                     pageRequested = true;
-                    webView.loadUrl(HOME_URL);
+                    webView.loadUrl(homeUrl);
                 } else if (!serverReady) {
                     handler.postDelayed(this::waitForServerAndLoad, 500);
                 }
             });
         });
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        getSharedPreferences("esharex_notification_monitor", MODE_PRIVATE).edit().putBoolean("app_foreground", true).apply();
+    }
+
+    @Override protected void onPause() {
+        getSharedPreferences("esharex_notification_monitor", MODE_PRIVATE).edit().putBoolean("app_foreground", false).apply();
+        super.onPause();
     }
 
     @Override
