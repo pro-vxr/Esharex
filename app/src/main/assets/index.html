@@ -159,7 +159,7 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
 }
 
 
-/* 2.5.3: side reply action and non-flowing menus */
+/* 2.5.4: overlay menus, stable scroll anchoring and compact reply previews */
 .msgrow{width:100%;display:flex;flex-direction:column;align-items:flex-start}
 .msgrow.mine{align-items:flex-end}
 .msg-content-line{display:flex;align-items:center;gap:7px;max-width:100%;width:auto}
@@ -169,7 +169,7 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
 .msg-reply-side:active,.msg-reply-side:focus-visible{color:var(--accent);background:var(--panel2);outline:none}
 .msg-meta{margin-top:4px}
 .msg-actions{display:none!important}
-.friends-menu,.chat-actions-menu{position:fixed;z-index:1200;margin:0;max-height:min(70vh,520px);overflow:auto}
+.friends-menu,.chat-actions-menu{position:fixed!important;z-index:1200;margin:0!important;max-height:min(70vh,520px);overflow:auto}
 .friends-menu{width:min(280px,calc(100vw - 24px))}
 .chat-actions-menu{width:min(230px,calc(100vw - 24px))}
 .message-context-menu{position:fixed;z-index:1300}
@@ -308,7 +308,7 @@ function jumpToOriginal(messageId){
 
 let messageSelectionMode=false,selectedMessages=new Map(),contextMessage=null,contextRow=null,contextMine=false,onlineOnly=false;
 let lastMessageContext=null;
-function placeOverlayMenu(menu,anchor,alignRight=true){const r=anchor.getBoundingClientRect();menu.hidden=false;menu.style.visibility='hidden';const mr=menu.getBoundingClientRect();const left=Math.max(8,Math.min(alignRight?r.right-mr.width:r.left,innerWidth-mr.width-8));let top=r.bottom+8;if(top+mr.height>innerHeight-8)top=Math.max(8,r.top-mr.height-8);menu.style.left=left+'px';menu.style.top=top+'px';menu.style.visibility='visible'}
+function placeOverlayMenu(menu,anchor,alignRight=true){const r=anchor.getBoundingClientRect();menu.hidden=false;menu.style.visibility='hidden';const mr=menu.getBoundingClientRect();const vw=document.documentElement.clientWidth||innerWidth;const vh=(window.visualViewport&&window.visualViewport.height)||innerHeight;const left=Math.max(8,Math.min(alignRight?r.right-mr.width:r.left,vw-mr.width-8));let top=r.bottom+8;if(top+mr.height>vh-8)top=Math.max(8,r.top-mr.height-8);menu.style.left=left+'px';menu.style.top=top+'px';menu.style.visibility='visible'}
 function toggleChatActionsMenu(){const menu=$('chatActionsMenu');const anchor=document.querySelector('#chatPage .chat-context .iconbtn');const opening=menu.hidden;$('friendsMenu').hidden=true;if(!opening){menu.hidden=true;return}menu.hidden=false;$('headerEditAction').hidden=!(lastMessageContext&&lastMessageContext.mine&&lastMessageContext.message.type!=='file');placeOverlayMenu(menu,anchor,true)}
 async function runHeaderMessageAction(action){$('chatActionsMenu').hidden=true;if(!lastMessageContext){toast('Tap a message first');return}const {message,row,mine}=lastMessageContext;if(action==='copy'){try{await navigator.clipboard.writeText(messagePreview(message));toast('Copied')}catch(_){toast('Copy unavailable')}}else if(action==='reply')setReplyTarget(message);else if(action==='edit'&&mine&&message.type!=='file')editMessage(message);else if(action==='select')enterMessageSelection(row,message)}
 
@@ -340,7 +340,7 @@ function renderMessage(m,container,mine){
   if(m.caption){const c=document.createElement('div');c.textContent=m.caption;b.appendChild(c)}
  }else{const t=document.createElement('div');t.className='message-text';t.textContent=m.text||'';b.appendChild(t)}
  const contentLine=document.createElement('div');contentLine.className='msg-content-line';
- const reply=document.createElement('button');reply.type='button';reply.className='msg-reply-side';reply.title='Reply';reply.setAttribute('aria-label','Reply to this message');reply.innerHTML='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h9a7 7 0 0 1 7 7v2"/></svg>';reply.onclick=(e)=>{e.preventDefault();e.stopPropagation();setReplyTarget(m)};
+ const reply=document.createElement('button');reply.type='button';reply.className='msg-reply-side';reply.title='Reply';reply.setAttribute('aria-label','Reply to this message');reply.innerHTML='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9h-9a7 7 0 0 0-7 7v2"/></svg>';reply.onclick=(e)=>{e.preventDefault();e.stopPropagation();setReplyTarget(m)};
  contentLine.appendChild(b);contentLine.appendChild(reply);row.appendChild(contentLine);
  const meta=document.createElement('div');meta.className='msg-meta';
  if(m.edited){const edited=document.createElement('small');edited.className='edited-label';edited.textContent='edited';meta.appendChild(edited)}
@@ -364,22 +364,26 @@ function closeEdit(){$('editModal').classList.remove('show');editingMessage=null
 async function saveEdit(){if(!editingMessage)return;const updated=$('editText').value.trim();if(!updated)return toast('Message cannot be empty');const m=editingMessage;try{const isDM=!!m.from;await api(isDM?'/api/dm/edit':'/api/chat/edit',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify(isDM?{id:m.id,from:deviceId,text:updated}:{id:m.id,userId:deviceId,text:updated})});closeEdit();if(isDM){seenDM.clear();await loadDM(true)}else{seenGeneral.clear();await loadGeneral(true)}toast('Message updated')}catch(_){toast('Could not edit message')}}
 function updateMessageList(data,box,mineFn,seen){
  const firstRender=box.dataset.initialized!=='1';
- const distanceFromBottom=box.scrollHeight-box.clientHeight-box.scrollTop;
- const wasNearBottom=distanceFromBottom<28;
+ const wasNearBottom=(box.scrollHeight-box.clientHeight-box.scrollTop)<36;
  if(!data.length){if(!box.children.length)box.innerHTML='<div class="empty">No messages yet. Start the conversation.</div>';box.dataset.initialized='1';return}
  const empty=box.querySelector('.empty');if(empty)empty.remove();
- const oldTop=box.scrollTop,oldHeight=box.scrollHeight;
+ // Preserve the first visible message as an anchor. Appending new messages must
+ // never move a reader who is browsing older content toward the bottom.
+ const beforeBox=box.getBoundingClientRect();
+ const anchor=[...box.querySelectorAll('.msgrow')].find(el=>el.getBoundingClientRect().bottom>beforeBox.top+2);
+ const anchorOffset=anchor?anchor.getBoundingClientRect().top-beforeBox.top:0;
+ const oldTop=box.scrollTop;
  data.forEach(m=>{const id=m.id||'';const existing=[...box.children].find(el=>el.dataset&&el.dataset.messageId===id);const signature=JSON.stringify(m);if(existing){if(existing.dataset.signature!==signature){const replacement=document.createElement('div');renderMessage(m,replacement,mineFn(m));existing.replaceWith(replacement.firstElementChild)}}else{renderMessage(m,box,mineFn(m));if(!seen.has(id))seen.add(id)}});
  box.dataset.initialized='1';
  if(firstRender){box.scrollTop=box.scrollHeight;box.dataset.userReading='0'}
  else if(wasNearBottom&&box.dataset.userReading!=='1'){box.scrollTop=box.scrollHeight}
- else {const delta=box.scrollHeight-oldHeight;box.scrollTop=oldTop+Math.max(0,delta);box.dataset.userReading='1'}
+ else {if(anchor&&anchor.isConnected){const afterOffset=anchor.getBoundingClientRect().top-box.getBoundingClientRect().top;box.scrollTop+=afterOffset-anchorOffset}else box.scrollTop=oldTop;box.dataset.userReading='1'}
 }
 // Keep polling from pulling the reader back to the newest message.
 ['generalMessages','dmMessages'].forEach(id=>{const box=document.getElementById(id);if(!box)return;box.addEventListener('scroll',()=>{const gap=box.scrollHeight-box.clientHeight-box.scrollTop;if(gap>36)box.dataset.userReading='1';else box.dataset.userReading='0'},{passive:true})});
 async function loadGeneral(force=false){if(!myName)return;try{const data=await api('/api/messages');const box=$('generalMessages');const fresh=data.filter(m=>!seenGeneral.has(m.id));updateMessageList(data,box,m=>m.userId===deviceId||m.username===myName,seenGeneral);fresh.forEach(m=>{if(m.userId!==deviceId&&document.hidden){const title='eShareX · '+(m.username||'New message'),body=messagePreview(m);if(isNative&&window.AndroidBridge)window.AndroidBridge.showNotification(title,body);else if('Notification'in window&&Notification.permission==='granted')new Notification(title,{body})}})}catch(_){}}
 async function sendGeneral(){const text=$('generalInput').value.replace(/\r\n?/g,'\n').trim();if(!text)return;try{await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({text,userId:deviceId,username:myName,replyTo:replyTarget&&replyTarget._conversation==='general'?{text:messagePreview(replyTarget),messageId:replyTarget.id,username:replyTarget.username||replyTarget.fromName||''}:null})});$('generalInput').value='';$('generalInput').style.height='40px';saveDraft('general',$('generalInput'));cancelReply();await loadGeneral()}catch(_){toast('Message could not be sent')}}
-async function loadPeople(){if(!myName)return;try{let users=await api('/api/users?id='+encodeURIComponent(deviceId));let online=users.filter(u=>u.online);$('memberCount').textContent=online.length;$('chatOnline').textContent=online.length+' online';$('friendsOnline').textContent=online.length+' online';if(currentPeer){const livePeer=users.find(u=>u.id===currentPeer.id);if(livePeer){currentPeer.online=!!livePeer.online;$('chatOnline').textContent=livePeer.online?'Online':'Offline'}}let others=users.filter(u=>u.id!==deviceId&&!u.self);$('onlineList').innerHTML='';$('friendsGrid').innerHTML='';if(!others.length)$('friendsGrid').innerHTML='<div class="panel empty">You are the first one here. Invite someone to join your network.</div>';others.forEach(u=>{let row=document.createElement('div');row.className='person';row.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><span class="dot"></span>';row.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();row.querySelector('strong').textContent=u.name;row.querySelector('small').textContent=u.online?'Online':'Offline';row.querySelector('.dot').classList.toggle('on',u.online);$('onlineList').appendChild(row);let card=document.createElement('div');card.className='panel friend-card';card.dataset.online=u.online?'true':'false';card.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><button class="btn">Message</button>';card.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();card.querySelector('strong').textContent=u.name;card.querySelector('small').textContent=u.online?'● Online':'○ Offline';card.querySelector('small').style.color=u.online?'var(--accent)':'var(--muted)';card.querySelector('button').onclick=()=>openDM(u);$('friendsGrid').appendChild(card)});filterFriends()}catch(_){}}
+async function loadPeople(){if(!myName)return;try{let users=await api('/api/users?id='+encodeURIComponent(deviceId));let online=users.filter(u=>u.online);const otherOnline=online.filter(u=>u.id!==deviceId&&!u.self).length;$('memberCount').textContent=otherOnline;$('chatOnline').textContent=online.length+' online';$('friendsOnline').textContent=otherOnline+' online';if(currentPeer){const livePeer=users.find(u=>u.id===currentPeer.id);if(livePeer){currentPeer.online=!!livePeer.online;$('chatOnline').textContent=livePeer.online?'Online':'Offline'}}let others=users.filter(u=>u.id!==deviceId&&!u.self);$('onlineList').innerHTML='';$('friendsGrid').innerHTML='';if(!others.length)$('friendsGrid').innerHTML='<div class="panel empty">You are the first one here. Invite someone to join your network.</div>';others.forEach(u=>{let row=document.createElement('div');row.className='person';row.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><span class="dot"></span>';row.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();row.querySelector('strong').textContent=u.name;row.querySelector('small').textContent=u.online?'Online':'Offline';row.querySelector('.dot').classList.toggle('on',u.online);$('onlineList').appendChild(row);let card=document.createElement('div');card.className='panel friend-card';card.dataset.online=u.online?'true':'false';card.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><button class="btn">Message</button>';card.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();card.querySelector('strong').textContent=u.name;card.querySelector('small').textContent=u.online?'● Online':'○ Offline';card.querySelector('small').style.color=u.online?'var(--accent)':'var(--muted)';card.querySelector('button').onclick=()=>openDM(u);$('friendsGrid').appendChild(card)});filterFriends()}catch(_){}}
 function openDM(u){if(currentPeer)saveDraft(draftKey(currentPeer.id),$('dmInput'));cancelReply();dmRequestSeq++;currentPeer={...u};seenDM.clear();const box=$('dmMessages');box.innerHTML='';box.dataset.initialized='0';box.dataset.userReading='0';box.scrollTop=0;restoreDraft(draftKey(u.id),$('dmInput'));go('/chat');document.querySelector('.chat-shell').style.display='none';$('dmPanel').style.display='flex';$('conversationName').textContent=u.name;$('dmTitle').textContent=u.name;$('chatOnline').textContent=u.online?'Online':'Offline';loadDM(u.id);$('dmInput').focus()}
 function closeDM(){if(currentPeer)saveDraft(draftKey(currentPeer.id),$('dmInput'));cancelReply();dmRequestSeq++;currentPeer=null;seenDM.clear();$('dmMessages').innerHTML='';$('dmMessages').dataset.initialized='0';$('dmPanel').style.display='none';document.querySelector('.chat-shell').style.display='block';restoreDraft('general',$('generalInput'));$('conversationName').textContent='General chat';loadGeneral()}
 async function loadDM(peerId){const selectedPeerId=peerId||(currentPeer&&currentPeer.id);if(!selectedPeerId||!currentPeer||currentPeer.id!==selectedPeerId)return;const requestId=++dmRequestSeq;try{const arr=await api('/api/dm?me='+encodeURIComponent(deviceId)+'&peer='+encodeURIComponent(selectedPeerId));if(!currentPeer||currentPeer.id!==selectedPeerId||requestId!==dmRequestSeq)return;const box=$('dmMessages');const normalized=arr.map(m=>({...m,username:m.from===deviceId?'You':m.fromName,userId:m.from,text:m.text,timestamp:m.timestamp}));const fresh=normalized.filter(m=>!seenDM.has(m.id));updateMessageList(normalized,box,m=>m.from===deviceId,seenDM);fresh.forEach(m=>{if(m.from!==deviceId&&document.hidden){const title='eShareX · '+(m.fromName||'Private message'),body=messagePreview(m);if(isNative&&window.AndroidBridge)window.AndroidBridge.showNotification(title,body);else if('Notification'in window&&Notification.permission==='granted')new Notification(title,{body})}})}catch(_){}}
@@ -405,7 +409,9 @@ function finishUploadTask(task,ok,message){task.item.classList.toggle('failed',!
 function sendAttachment(){if(!pendingFile)return;const f=pendingFile,peerId=currentPeer?currentPeer.id:null,conversationKey=peerId?'dm:'+peerId:'general';const caption=$('attachmentCaption').value.trim();const reply=replyTarget&&replyTarget._conversation===conversationKey?{text:messagePreview(replyTarget),messageId:replyTarget.id,username:replyTarget.username||replyTarget.fromName||''}:null;const task=addUploadTask(f,peerId);const fd=new FormData();fd.append('file',f,f.name);fd.append('username',myName);fd.append('userId',deviceId);fd.append('caption',caption);fd.append('mimeType',f.type||'application/octet-stream');if(peerId){fd.append('from',deviceId);fd.append('to',peerId)}if(reply)fd.append('replyTo',JSON.stringify(reply));cancelAttachment();if(reply)cancelReply();const xhr=new XMLHttpRequest();xhr.open('POST','/api/upload',true);xhr.upload.onprogress=e=>{if(e.lengthComputable){const pct=Math.round(e.loaded/e.total*100);task.bar.style.width=pct+'%';task.status.textContent='Uploading · '+pct+'%'}};xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300){task.status.textContent='Sent';finishUploadTask(task,true,'Sent');if(peerId){if(currentPeer&&currentPeer.id===peerId)loadDM(peerId)}else if(location.pathname==='/chat'&&!currentPeer)loadGeneral()}else finishUploadTask(task,false,'Failed · '+(xhr.status||'server error'))};xhr.onerror=()=>finishUploadTask(task,false,'Failed · connection error');xhr.onabort=()=>finishUploadTask(task,false,'Cancelled');xhr.send(fd);toast('Upload started — you can keep using eShareX')}
 $('generalInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey)e.stopPropagation()});$('dmInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey)e.stopPropagation()});$('generalInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px';saveDraft('general',e.target)});
 $('dmInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px';if(currentPeer)saveDraft(draftKey(currentPeer.id),e.target)});
-document.addEventListener('click',e=>{if(!e.target.closest('.top-actions')&&!e.target.closest('.menu'))$('moreMenu').classList.remove('show')});
+document.addEventListener('click',e=>{if(!e.target.closest('.top-actions')&&!e.target.closest('.menu'))$('moreMenu').classList.remove('show');if(!e.target.closest('#friendsMenu')&&!e.target.closest('#friendsPage .chat-context .iconbtn'))$('friendsMenu').hidden=true;if(!e.target.closest('#chatActionsMenu')&&!e.target.closest('#chatPage .chat-context .iconbtn'))$('chatActionsMenu').hidden=true;if(!e.target.closest('#messageContextMenu')&&!e.target.closest('.msgrow'))$('messageContextMenu').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('friendsMenu').hidden=true;$('chatActionsMenu').hidden=true;$('messageContextMenu').hidden=true}});
+window.addEventListener('resize',()=>{$('friendsMenu').hidden=true;$('chatActionsMenu').hidden=true;$('messageContextMenu').hidden=true},{passive:true});
 
 ['generalInput','dmInput'].forEach(id=>{const input=document.getElementById(id);if(!input)return;input.addEventListener('focus',()=>{const box=document.getElementById(id==='dmInput'?'dmMessages':'generalMessages');if(box){box.dataset.userReading='0';requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight})}})});
 function updateAppViewportHeight(){
@@ -438,7 +444,7 @@ async function installWebApp(){if(isInstalledPWA()){toast('eShareX is already in
  toast('Use your browser menu to install or add eShareX to your home screen')}
 if('serviceWorker'in navigator&&(window.isSecureContext||location.hostname==='localhost'))window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 function requestFirstOpenPermission(){if(!isNative)return;if(localStorage.getItem('esharex_notification_prompted')==='1')return;localStorage.setItem('esharex_notification_prompted','1');setTimeout(()=>requestNotificationPermission(),900)}
-route();if(isNative||isInstalledPWA()){$('installRow').hidden=true;$('installMenuItem').hidden=true}if(myName)startPresence();if(isNative){startNearbyDiscovery()}if(location.pathname==='/'&&!myName){loadLandingConnection();setInterval(loadLandingConnection,5000)}requestFirstOpenPermission()
+route();if(isNative||isInstalledPWA()){$('installRow').hidden=true;$('installMenuItem').hidden=true}if(myName)startPresence().then(()=>loadPeople()).catch(()=>{});if(isNative){startNearbyDiscovery()}if(location.pathname==='/'&&!myName){loadLandingConnection();setInterval(loadLandingConnection,5000)}requestFirstOpenPermission()
 // Enter inserts a newline; the send button sends the message.
 </script>
 <style>
@@ -475,25 +481,24 @@ body.conversation-mode .messages{padding-bottom:8px;scroll-padding-bottom:8px}
  font:inherit;font-size:12px;line-height:1.25;white-space:nowrap;
  overflow:hidden;text-overflow:ellipsis;cursor:pointer;
 }
-.mine .quoted-message{background:rgba(0,0,0,.10);color:#26351a;border-left-color:#526d2b}
+.mine .quoted-message{background:transparent;color:#26351a}
 .msgname{margin-bottom:3px}
 .bubble{padding:9px 12px;line-height:1.4}
-.msgrow .bubble.media-bubble{padding:7px}
+.msgrow .bubble.media-bubble{padding:6px}
 
 /* 2.4.8 reply alignment, compact actions and stable reply navigation */
 .quoted-message{
  display:flex;align-items:center;gap:3px;
  box-sizing:border-box;width:100%;max-width:100%;
- margin:0 0 4px;padding:3px 5px;
- border:0;border-left:2px solid var(--accent);
- border-radius:4px;background:rgba(0,0,0,.12);
+ margin:0 0 3px;padding:2px 0;
+ border:0;border-radius:0;background:transparent;
  color:inherit;text-align:left;font:inherit;font-size:12px;
  line-height:1.25;white-space:nowrap;overflow:hidden;
  text-overflow:ellipsis;cursor:pointer;
  appearance:none;-webkit-appearance:none;
 }
 .quoted-message::first-letter{margin:0}
-.mine .quoted-message{background:rgba(0,0,0,.10);color:#26351a;border-left-color:#526d2b}
+.mine .quoted-message{background:transparent;color:#26351a}
 .msg-actions{gap:3px;padding:1px 2px 0;margin:0}
 .msg-actions button{padding:1px 3px;line-height:1.1}
 .bubble{padding:8px 10px;line-height:1.38}
@@ -504,7 +509,7 @@ body.conversation-mode .messages{padding-bottom:8px;scroll-padding-bottom:8px}
 .nearby-panel{margin-bottom:14px;padding:14px}.nearby-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.nearby-head>div{display:flex;flex-direction:column;gap:4px}.nearby-head small{color:var(--muted)}.nearby-devices{display:grid;gap:8px;margin-top:12px}.nearby-device{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid var(--line);border-radius:12px}.nearby-device>div{display:flex;flex-direction:column;gap:3px;min-width:0}.nearby-device small{color:var(--muted);overflow-wrap:anywhere}
 
 /* 2.5.0: keyboard-safe viewport, per-chat drafts, inline discovery and background uploads */
-html,body{background:#080b10!important;overscroll-behavior-y:none}
+html,body{background:#080b10!important;overscroll-behavior-y:none;height:100%;color-scheme:dark;}body.keyboard-open{height:var(--app-height,100dvh)!important;min-height:0!important;overflow:hidden!important;background:#080b10!important}body.keyboard-open .app{height:var(--app-height,100dvh)!important;min-height:0!important;overflow:hidden!important}
 body.conversation-mode{background:#080b10!important;min-height:0}
 body.conversation-mode .app{min-height:0;background:#080b10}
 body.keyboard-open .app{height:var(--app-height,100dvh)!important;min-height:0!important}
@@ -534,7 +539,7 @@ body.keyboard-open .footer{display:none!important}
  font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI","Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif;
 }
 .install-row{margin-top:10px}.install-app-btn{width:100%;min-height:46px}.install-app-btn[hidden]{display:none!important}
-.friends-menu{position:relative;z-index:30;margin:-4px 0 14px auto;width:min(260px,85vw);padding:7px;border:1px solid var(--line);border-radius:14px;background:#111720;box-shadow:0 14px 36px #0008}
+.friends-menu{position:fixed;z-index:1200;margin:0;width:min(280px,calc(100vw - 24px));padding:7px;border:1px solid var(--line);border-radius:14px;background:#111720;box-shadow:0 14px 36px #0008}
 .friends-menu[hidden],.friends-tools[hidden]{display:none!important}
 .friends-menu button{display:block;width:100%;padding:12px;border:0;border-radius:9px;background:transparent;color:var(--text);text-align:left}
 .friends-menu button:active{background:var(--panel2)}
@@ -551,7 +556,7 @@ body.keyboard-open .footer{display:none!important}
 .selection-toolbar button:disabled{opacity:.35}
 .msg-actions{justify-content:flex-end}.msg-actions button{min-width:28px}
 
-.chat-actions-menu{position:relative;z-index:35;margin:-4px 0 10px auto;width:min(220px,80vw);padding:6px;border:1px solid var(--line);border-radius:12px;background:#111720;box-shadow:0 12px 32px #0008}
+.chat-actions-menu{position:fixed;z-index:1200;margin:0;width:min(230px,calc(100vw - 24px));padding:6px;border:1px solid var(--line);border-radius:12px;background:#111720;box-shadow:0 12px 32px #0008}
 .chat-actions-menu[hidden]{display:none!important}
 .chat-actions-menu button{display:block;width:100%;padding:11px 12px;border:0;border-radius:8px;background:transparent;color:var(--text);text-align:left}
 .chat-actions-menu button:active{background:var(--panel2)}
