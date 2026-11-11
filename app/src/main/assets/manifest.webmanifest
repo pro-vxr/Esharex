@@ -1,13 +1,29 @@
 {
   "name": "eShareX",
   "short_name": "eShareX",
-  "description": "Local network file sharing and chat",
+  "description": "Local network chat and file sharing",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#090b10",
   "theme_color": "#090b10",
+  "categories": [
+    "communication",
+    "utilities"
+  ],
   "icons": [
-    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
-    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"}
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
