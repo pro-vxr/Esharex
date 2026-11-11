@@ -6,6 +6,8 @@ import android.net.Uri;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.content.Context;
+import androidx.core.content.ContextCompat;
+import java.util.UUID;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -48,7 +50,7 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(0xFF080808);
 
         Intent service = new Intent(this, ShareServerService.class);
-        startService(service);
+        ContextCompat.startForegroundService(this, service);
 
         webView = new WebView(this);
         webView.setBackgroundColor(0xFF080808);
@@ -96,11 +98,24 @@ public class MainActivity extends Activity {
     }
 
 
+    private String getStableDeviceId() {
+        android.content.SharedPreferences prefs = getSharedPreferences("esharex_identity", MODE_PRIVATE);
+        String id = prefs.getString("device_id", null);
+        if (id == null || id.trim().isEmpty()) { id = "android-" + UUID.randomUUID().toString(); prefs.edit().putString("device_id", id).apply(); }
+        return id;
+    }
+
     private class NotificationBridge {
+        @JavascriptInterface
+        public String getDeviceId() { return getStableDeviceId(); }
+
         @JavascriptInterface
         public void startDiscovery() {
             runOnUiThread(() -> beginDiscovery());
         }
+
+        @JavascriptInterface
+        public void refreshDiscovery() { runOnUiThread(() -> { stopDiscovery(); beginDiscovery(); }); }
 
         @JavascriptInterface
         public void joinNearby(String url) {
@@ -167,7 +182,7 @@ public class MainActivity extends Activity {
             @Override public void onDiscoveryStarted(String type) { publishNearby(); }
             @Override public void onServiceFound(NsdServiceInfo service) {
                 if (!SERVICE_TYPE.equals(service.getServiceType())) return;
-                String ownName = "eShareX-" + Build.MODEL.replaceAll("[^A-Za-z0-9-]", "");
+                String ownName = "eShareX-" + getStableDeviceId().replaceAll("[^A-Za-z0-9]", "").replaceAll("^.*(?=.{12}$)", "");
                 if (ownName.equals(service.getServiceName())) return;
                 nsdManager.resolveService(service, new NsdManager.ResolveListener() {
                     @Override public void onResolveFailed(NsdServiceInfo info, int errorCode) {}

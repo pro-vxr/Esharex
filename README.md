@@ -1,12 +1,7 @@
-# eShareX 2.4.3
+# eShareX 2.4.9
 
-UI and mobile layout maintenance release.
+Local-network chat and file sharing for Android and web.
 
-## Changes
-- Keep Chat/Friends navigation and conversation header fixed while only the message list scrolls.
-- Keep the composer attached to the bottom of the chat panel.
-- Adjust the app frame to the visual viewport when the mobile keyboard opens, preventing the blank gap above the keyboard.
-- Use plain filenames for document/file attachments instead of emoji/paperclip glyphs.
-- Keep the landing-page guide toggle labels to `Show` and `Hide`.
+This release focuses on DM isolation, session registration/presence recovery, stable Android device identity, nearby discovery UI, safer upload validation, and attachment filename preservation.
 
-Build version: 2.4.3 (versionCode 11).
+Build with JDK 17 and Android SDK 34 using `./gradlew assembleDebug` or the GitHub Actions release workflow.

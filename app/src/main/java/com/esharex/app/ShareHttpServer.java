@@ -40,7 +40,7 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.4.5"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.4.9"));
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
                 return json(new JSONObject().put("ip", ip).put("port", 8080).put("available", !"127.0.0.1".equals(ip)).put("address", "http://" + ip + ":8080"));
@@ -59,7 +59,7 @@ public class ShareHttpServer extends NanoHTTPD {
             if ("/api/export/chat".equals(uri) && Method.GET.equals(method)) return exportChat();
             if ("/api/export/dm".equals(uri) && Method.GET.equals(method)) return exportDirectMessages(session);
             if ("/api/upload".equals(uri) && Method.POST.equals(method)) return handleUpload(session);
-            if (uri.startsWith("/uploads/")) return serveUpload(uri.substring("/uploads/".length()));
+            if (uri.startsWith("/uploads/")) return serveUpload(uri.substring("/uploads/".length()), session);
             if ("/".equals(uri) || "/chat".equals(uri) || "/friends".equals(uri)) return asset("index.html", "text/html; charset=utf-8");
             if (uri.matches("/[A-Za-z0-9._/-]+") && !uri.contains("..")) return asset(uri.substring(1), mimeFor(uri));
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found");
@@ -107,9 +107,14 @@ public class ShareHttpServer extends NanoHTTPD {
     }
 
     private Response heartbeat(IHTTPSession session) throws Exception {
-        JSONObject in = readBody(session); String id = in.optString("id", "");
+        JSONObject in = readBody(session); String id = safeText(in.optString("id", ""), 80);
         JSONObject user = users.get(id);
-        if (user == null) return jsonError(Response.Status.UNAUTHORIZED, "Register first");
+        if (user == null) {
+            String name = safeText(in.optString("name", ""), 32);
+            if (id.isEmpty() || name.isEmpty()) return jsonError(Response.Status.UNAUTHORIZED, "Register first");
+            user = new JSONObject().put("id", id).put("name", name).put("joinedAt", System.currentTimeMillis());
+            users.put(id, user);
+        }
         user.put("lastSeen", System.currentTimeMillis()); saveUsers();
         return json(new JSONObject().put("success", true).put("online", true));
     }
@@ -130,7 +135,8 @@ public class ShareHttpServer extends NanoHTTPD {
         if (text.trim().isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "Message is empty");
         String id = input.optString("userId", "");
         JSONObject user = users.get(id);
-        String username = user == null ? safeText(input.optString("username", "Guest"), 32) : user.optString("name", "Guest");
+        if (id.isEmpty() || user == null) return jsonError(Response.Status.UNAUTHORIZED, "Register before sending messages");
+        String username = user.optString("name", "Guest");
         JSONObject msg = new JSONObject().put("id", UUID.randomUUID().toString()).put("type","text")
             .put("text",text).put("username",username).put("userId",id)
             .put("replyTo", input.opt("replyTo") instanceof JSONObject ? input.opt("replyTo") : JSONObject.NULL)
@@ -171,6 +177,7 @@ public class ShareHttpServer extends NanoHTTPD {
     private Response listDirectMessages(IHTTPSession session) throws Exception {
         String me = session.getParms().get("me"), peer = session.getParms().get("peer");
         if (me == null || peer == null) return jsonError(Response.Status.BAD_REQUEST,"me and peer are required");
+        if (!users.containsKey(me)) return jsonError(Response.Status.UNAUTHORIZED,"Register before loading private messages");
         JSONArray arr = new JSONArray();
         for (JSONObject msg : directMessages) {
             String from=msg.optString("from"), to=msg.optString("to");
@@ -233,25 +240,34 @@ public class ShareHttpServer extends NanoHTTPD {
         return r;
     }
 
+    private static final long MAX_UPLOAD_BYTES = 100L * 1024L * 1024L;
     private Response handleUpload(IHTTPSession session) throws Exception {
+        String lengthHeader = session.getHeaders().get("content-length");
+        if (lengthHeader != null) { try { if (Long.parseLong(lengthHeader) > MAX_UPLOAD_BYTES + 1024L * 1024L) return jsonError(Response.Status.BAD_REQUEST, "File exceeds the 100 MB limit"); } catch (NumberFormatException ignored) {} }
         Map<String,String> files = new HashMap<>(); session.parseBody(files);
         Map<String,List<String>> params=session.getParameters(); String temp=files.get("file");
         if(temp==null) return jsonError(Response.Status.BAD_REQUEST,"No file received");
+        String userId = safeText(first(params,"userId"),80);
+        JSONObject registeredUser = users.get(userId);
+        if (userId.isEmpty() || registeredUser == null) return jsonError(Response.Status.UNAUTHORIZED,"Register before uploading files");
+        String to=first(params,"to"), from=first(params,"from");
+        if (to != null || from != null) {
+            if (to == null || from == null || !from.equals(userId) || !users.containsKey(to)) return jsonError(Response.Status.NOT_FOUND,"Private chat user not found");
+        }
         String original=first(params,"file"); if(original==null||original.trim().isEmpty()) original="shared-file";
-        original=new File(original).getName().replaceAll("[^A-Za-z0-9._ -]","_");
+        original=new File(original.replace('\\','/')).getName().replaceAll("[^A-Za-z0-9._ -]","_");
         String ext=""; int dot=original.lastIndexOf('.'); if(dot>=0&&dot<original.length()-1) ext=original.substring(dot);
         String stored=UUID.randomUUID()+ext; File destination=new File(uploadsDir,stored);
         try(InputStream in=new FileInputStream(temp); FileOutputStream out=new FileOutputStream(destination)){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}
+        if (destination.length() > MAX_UPLOAD_BYTES) { destination.delete(); return jsonError(Response.Status.BAD_REQUEST,"File exceeds the 100 MB limit"); }
         String mime=first(params,"mimeType"); if(mime==null||mime.isEmpty())mime=first(params,"file.type"); if(mime==null||mime.isEmpty())mime="application/octet-stream";
-        JSONObject msg=new JSONObject().put("id",UUID.randomUUID().toString()).put("type","file").put("url","/uploads/"+stored)
+        JSONObject msg=new JSONObject().put("id",UUID.randomUUID().toString()).put("type","file").put("url","/uploads/"+stored+"?filename="+java.net.URLEncoder.encode(original,"UTF-8"))
             .put("filename",original).put("mime",mime).put("username",safeText(first(params,"username"),32))
             .put("userId",safeText(first(params,"userId"),80)).put("caption",safeText(first(params,"caption"),500))
             .put("fileSize",destination.length()).put("timestamp",System.currentTimeMillis());
         String reply=first(params,"replyTo"); if(reply!=null)try{msg.put("replyTo",new JSONObject(reply));}catch(Exception ignored){}
-        String to=first(params,"to"), from=first(params,"from");
         if(to!=null && from!=null) {
             JSONObject sender=users.get(from), recipient=users.get(to);
-            if(sender==null||recipient==null)return jsonError(Response.Status.NOT_FOUND,"Private chat user not found");
             msg.put("from",from).put("to",to).put("fromName",sender.optString("name","User"));
             directMessages.add(msg);trim(directMessages,1000);saveArray(dmFile,directMessages);
         } else addMessage(msg);
@@ -270,11 +286,11 @@ public class ShareHttpServer extends NanoHTTPD {
 
     private String safeText(String v,int max){if(v==null)return "";String c=v.replaceAll("[\\p{Cntrl}]","").trim();return c.length()>max?c.substring(0,max):c;}
     private void loadArray(File f,List<JSONObject> target){try{if(f.exists()){JSONArray a=new JSONArray(readFile(f));for(int i=0;i<a.length();i++)target.add(a.getJSONObject(i));}}catch(Exception ignored){}}
-    private void saveArray(File f,List<JSONObject> source){try(FileOutputStream o=new FileOutputStream(f)){o.write(arrayCopy(source).toString().getBytes("UTF-8"));}catch(Exception ignored){}}
+    private synchronized void saveArray(File f,List<JSONObject> source){File temp=new File(f.getParentFile(),f.getName()+".tmp");try(FileOutputStream o=new FileOutputStream(temp)){o.write(arrayCopy(source).toString().getBytes("UTF-8"));o.getFD().sync();}catch(Exception ignored){temp.delete();return;}if(!temp.renameTo(f)){try(FileInputStream in=new FileInputStream(temp);FileOutputStream out=new FileOutputStream(f)){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}catch(Exception ignored){}temp.delete();}}
     private void loadUsers(){try{if(usersFile.exists()){JSONArray a=new JSONArray(readFile(usersFile));for(int i=0;i<a.length();i++){JSONObject u=a.getJSONObject(i);users.put(u.getString("id"),u);}}}catch(Exception ignored){}}
-    private void saveUsers(){JSONArray a=new JSONArray();for(JSONObject u:users.values())a.put(u);try(FileOutputStream o=new FileOutputStream(usersFile)){o.write(a.toString().getBytes("UTF-8"));}catch(Exception ignored){}}
+    private synchronized void saveUsers(){JSONArray a=new JSONArray();for(JSONObject u:users.values())a.put(u);File temp=new File(dataDir,"users.json.tmp");try(FileOutputStream o=new FileOutputStream(temp)){o.write(a.toString().getBytes("UTF-8"));o.getFD().sync();}catch(Exception ignored){temp.delete();return;}if(!temp.renameTo(usersFile)){try(FileInputStream in=new FileInputStream(temp);FileOutputStream out=new FileOutputStream(usersFile)){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}catch(Exception ignored){}temp.delete();}}
     private String readFile(File f)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();try(InputStream in=new FileInputStream(f)){byte[]b=new byte[4096];int n;while((n=in.read(b))!=-1)o.write(b,0,n);}return o.toString("UTF-8");}
-    private Response serveUpload(String name) throws Exception {
+    private Response serveUpload(String name, IHTTPSession session) throws Exception {
         if (name.contains("/") || name.contains("\\") || name.contains("..")) {
             return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Bad filename");
         }
@@ -283,7 +299,10 @@ public class ShareHttpServer extends NanoHTTPD {
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found");
         }
         Response r = newFixedLengthResponse(Response.Status.OK, mimeFor(name), new FileInputStream(f), f.length());
-        r.addHeader("Content-Disposition", "inline; filename=\"" + name.replace("\"", "") + "\"");
+        String original = safeText(session.getParms().get("filename"), 180);
+        if (original.isEmpty()) original = name;
+        original = original.replaceAll("[\\\"\\r\\n]", "_");
+        r.addHeader("Content-Disposition", "inline; filename=\"" + original + "\"; filename*=UTF-8''" + java.net.URLEncoder.encode(original, "UTF-8").replace("+", "%20"));
         addCors(r);
         return r;
     }

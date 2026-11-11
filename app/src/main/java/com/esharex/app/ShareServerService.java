@@ -56,7 +56,11 @@ public class ShareServerService extends Service {
     private void advertiseService() {
         nsdManager = (NsdManager) getSystemService(NSD_SERVICE);
         NsdServiceInfo info = new NsdServiceInfo();
-        info.setServiceName("eShareX-" + android.os.Build.MODEL.replaceAll("[^A-Za-z0-9-]", ""));
+        android.content.SharedPreferences prefs = getSharedPreferences("esharex_identity", MODE_PRIVATE);
+        String id = prefs.getString("device_id", null);
+        if (id == null || id.trim().isEmpty()) { id = "android-" + java.util.UUID.randomUUID().toString(); prefs.edit().putString("device_id", id).apply(); }
+        String suffix = id.replaceAll("[^A-Za-z0-9]", "");
+        info.setServiceName("eShareX-" + suffix.substring(Math.max(0, suffix.length() - 12)));
         info.setServiceType("_esharex._tcp.");
         info.setPort(8080);
         registrationListener = new NsdManager.RegistrationListener() {
