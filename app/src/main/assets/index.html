@@ -237,7 +237,22 @@ async function joinNetwork(){myName=$('joinName').value.trim();if(!myName)return
 function startPresence(){if(poller)clearInterval(poller);if(heartbeat)clearInterval(heartbeat);heartbeat=setInterval(()=>api('/api/presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId})}).catch(()=>{}),15000);poller=setInterval(()=>{if(location.pathname==='/chat'){loadGeneral();loadPeople()}if(location.pathname==='/friends')loadPeople();if(currentPeer)loadDM()},2500);api('/api/presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId})}).catch(()=>{});}
 let replyTarget=null,mediaRecorder=null,recordedChunks=[],pendingFile=null,editingMessage=null;
 function messagePreview(m){return m.text||m.caption||m.filename||'Attachment'}
-function jumpToOriginal(messageId){if(!messageId)return toast('Original message is no longer available');const box=currentPeer?$('dmMessages'):$('generalMessages');const target=[...box.querySelectorAll('.msgrow')].find(row=>row.dataset.messageId===messageId);if(!target)return toast('Original message is not loaded');target.scrollIntoView({behavior:'smooth',block:'center'});target.classList.add('reply-target-flash');setTimeout(()=>target.classList.remove('reply-target-flash'),1800)}
+function jumpToOriginal(messageId){
+ if(!messageId)return toast('Original message is no longer available');
+ const box=currentPeer?$('dmMessages'):$('generalMessages');
+ const target=[...box.querySelectorAll('.msgrow')].find(row=>row.dataset.messageId===messageId);
+ if(!target)return toast('Original message is not loaded');
+ // Pause bottom-following while navigating to a quoted message.
+ box.dataset.userReading='1';
+ const top=target.offsetTop-box.offsetTop-(box.clientHeight-target.offsetHeight)/2;
+ box.scrollTo({top:Math.max(0,top),behavior:'smooth'});
+ box.dataset.replyNavigation='1';
+ target.classList.remove('reply-target-flash');
+ requestAnimationFrame(()=>target.classList.add('reply-target-flash'));
+ clearTimeout(target._replyFlashTimer);
+ target._replyFlashTimer=setTimeout(()=>target.classList.remove('reply-target-flash'),2200);
+ setTimeout(()=>{box.dataset.replyNavigation='0'},900);
+}
 function renderMessage(m,container,mine){
  const row=document.createElement('div');row.className='msgrow'+(mine?' mine':'');row.dataset.messageId=m.id||'';row.dataset.signature=JSON.stringify(m);
  const b=document.createElement('div');b.className='bubble';
@@ -370,6 +385,27 @@ body.conversation-mode .messages{padding-bottom:8px;scroll-padding-bottom:8px}
 .msgname{margin-bottom:3px}
 .bubble{padding:9px 12px;line-height:1.4}
 .msgrow .bubble.media-bubble{padding:7px}
+
+/* 2.4.8 reply alignment, compact actions and stable reply navigation */
+.quoted-message{
+ display:flex;align-items:center;gap:3px;
+ box-sizing:border-box;width:100%;max-width:100%;
+ margin:0 0 4px;padding:3px 5px;
+ border:0;border-left:2px solid var(--accent);
+ border-radius:4px;background:rgba(0,0,0,.12);
+ color:inherit;text-align:left;font:inherit;font-size:12px;
+ line-height:1.25;white-space:nowrap;overflow:hidden;
+ text-overflow:ellipsis;cursor:pointer;
+ appearance:none;-webkit-appearance:none;
+}
+.quoted-message::first-letter{margin:0}
+.mine .quoted-message{background:rgba(0,0,0,.10);color:#26351a;border-left-color:#526d2b}
+.msg-actions{gap:3px;padding:1px 2px 0;margin:0}
+.msg-actions button{padding:1px 3px;line-height:1.1}
+.bubble{padding:8px 10px;line-height:1.38}
+.msgname{margin-bottom:2px}
+.msg-meta{margin-top:3px;padding-left:2px;padding-right:2px}
+.msgrow.reply-target-flash .bubble{outline:2px solid var(--accent);box-shadow:0 0 0 5px rgba(183,243,91,.16)}
 </style>
 <script>
 /* Keep the newest message visible when the mobile keyboard changes the viewport. */
