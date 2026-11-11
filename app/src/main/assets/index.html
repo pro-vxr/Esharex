@@ -158,6 +158,26 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
  body.conversation-mode .composer-field textarea{min-height:38px;max-height:96px;padding:8px 7px}
 }
 
+
+/* 2.5.3: side reply action and non-flowing menus */
+.msgrow{width:100%;display:flex;flex-direction:column;align-items:flex-start}
+.msgrow.mine{align-items:flex-end}
+.msg-content-line{display:flex;align-items:center;gap:7px;max-width:100%;width:auto}
+.msgrow.mine .msg-content-line{flex-direction:row-reverse}
+.msg-content-line .bubble{min-width:0}
+.msg-reply-side{flex:0 0 30px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted);opacity:.78;padding:0;cursor:pointer}
+.msg-reply-side:active,.msg-reply-side:focus-visible{color:var(--accent);background:var(--panel2);outline:none}
+.msg-meta{margin-top:4px}
+.msg-actions{display:none!important}
+.friends-menu,.chat-actions-menu{position:fixed;z-index:1200;margin:0;max-height:min(70vh,520px);overflow:auto}
+.friends-menu{width:min(280px,calc(100vw - 24px))}
+.chat-actions-menu{width:min(230px,calc(100vw - 24px))}
+.message-context-menu{position:fixed;z-index:1300}
+@media (max-width:600px){
+ .msg-content-line{gap:5px}
+ .msg-reply-side{width:27px;height:27px;flex-basis:27px}
+}
+
 </style>
 </head>
 <body>
@@ -288,7 +308,8 @@ function jumpToOriginal(messageId){
 
 let messageSelectionMode=false,selectedMessages=new Map(),contextMessage=null,contextRow=null,contextMine=false,onlineOnly=false;
 let lastMessageContext=null;
-function toggleChatActionsMenu(){const menu=$('chatActionsMenu');menu.hidden=!menu.hidden;if(!menu.hidden){$('headerEditAction').hidden=!(lastMessageContext&&lastMessageContext.mine&&lastMessageContext.message.type!=='file')}}
+function placeOverlayMenu(menu,anchor,alignRight=true){const r=anchor.getBoundingClientRect();menu.hidden=false;menu.style.visibility='hidden';const mr=menu.getBoundingClientRect();const left=Math.max(8,Math.min(alignRight?r.right-mr.width:r.left,innerWidth-mr.width-8));let top=r.bottom+8;if(top+mr.height>innerHeight-8)top=Math.max(8,r.top-mr.height-8);menu.style.left=left+'px';menu.style.top=top+'px';menu.style.visibility='visible'}
+function toggleChatActionsMenu(){const menu=$('chatActionsMenu');const anchor=document.querySelector('#chatPage .chat-context .iconbtn');const opening=menu.hidden;$('friendsMenu').hidden=true;if(!opening){menu.hidden=true;return}menu.hidden=false;$('headerEditAction').hidden=!(lastMessageContext&&lastMessageContext.mine&&lastMessageContext.message.type!=='file');placeOverlayMenu(menu,anchor,true)}
 async function runHeaderMessageAction(action){$('chatActionsMenu').hidden=true;if(!lastMessageContext){toast('Tap a message first');return}const {message,row,mine}=lastMessageContext;if(action==='copy'){try{await navigator.clipboard.writeText(messagePreview(message));toast('Copied')}catch(_){toast('Copy unavailable')}}else if(action==='reply')setReplyTarget(message);else if(action==='edit'&&mine&&message.type!=='file')editMessage(message);else if(action==='select')enterMessageSelection(row,message)}
 
 function currentMessageBox(){return currentPeer?$('dmMessages'):$('generalMessages')}
@@ -300,8 +321,9 @@ async function copySelectedMessages(){const text=[...selectedMessages.values()].
 function replyToSelected(){const x=[...selectedMessages.values()][0];if(x)setReplyTarget(x.message);clearMessageSelection()}
 function editSelectedMessage(){const x=[...selectedMessages.values()][0];if(x&&x.mine&&x.message.type!=='file')editMessage(x.message);clearMessageSelection()}
 function openMessageContextMenu(x,y,m,row,mine){contextMessage=m;contextRow=row;contextMine=mine;const menu=$('messageContextMenu');menu.hidden=false;menu.style.left=Math.max(8,Math.min(x,innerWidth-190))+'px';menu.style.top=Math.max(8,Math.min(y,innerHeight-210))+'px';menu.querySelector('[data-action="edit"]').hidden=!mine||m.type==='file';menu.querySelector('[data-action="select"]').onclick=()=>{menu.hidden=true;enterMessageSelection(row,m)};menu.querySelector('[data-action="copy"]').onclick=async()=>{menu.hidden=true;try{await navigator.clipboard.writeText(messagePreview(m));toast('Copied')}catch(_){toast('Copy unavailable')}};menu.querySelector('[data-action="reply"]').onclick=()=>{menu.hidden=true;setReplyTarget(m)};menu.querySelector('[data-action="edit"]').onclick=()=>{menu.hidden=true;editMessage(m)}}
-document.addEventListener('click',e=>{if(!e.target.closest('#messageContextMenu'))$('messageContextMenu').hidden=true;if(!e.target.closest('#chatActionsMenu')&&!e.target.closest('.chat-context .iconbtn'))$('chatActionsMenu').hidden=true;if(!e.target.closest('#friendsMenu')&&!e.target.closest('#friendsPage .chat-context .iconbtn'))$('friendsMenu').hidden=true});
-function toggleFriendsMenu(){$('friendsMenu').hidden=!$('friendsMenu').hidden}
+document.addEventListener('click',e=>{if(!e.target.closest('#messageContextMenu'))$('messageContextMenu').hidden=true;if(!e.target.closest('#chatActionsMenu')&&!e.target.closest('#chatPage .chat-context .iconbtn'))$('chatActionsMenu').hidden=true;if(!e.target.closest('#friendsMenu')&&!e.target.closest('#friendsPage .chat-context .iconbtn'))$('friendsMenu').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){['messageContextMenu','chatActionsMenu','friendsMenu'].forEach(id=>$(id).hidden=true)}});
+function toggleFriendsMenu(){const menu=$('friendsMenu');const anchor=document.querySelector('#friendsPage .chat-context .iconbtn');const opening=menu.hidden;$('chatActionsMenu').hidden=true;if(!opening){menu.hidden=true;return}menu.hidden=false;placeOverlayMenu(menu,anchor,true)}
 function showFriendSearch(){$('friendsMenu').hidden=true;$('friendsTools').hidden=false;$('friendSearch').focus()}
 function filterFriends(){const q=$('friendSearch').value.trim().toLowerCase();document.querySelectorAll('#friendsGrid .friend-card').forEach(c=>{const name=c.querySelector('strong')?.textContent.toLowerCase()||'';c.hidden=(!name.includes(q))||(onlineOnly&&c.dataset.online!=='true')})}
 function toggleOnlineOnly(){onlineOnly=!onlineOnly;$('friendsMenu').hidden=true;$('friendsTools').hidden=false;$('onlineOnlyBtn').textContent=onlineOnly?'Show all friends':'Show online only';document.querySelectorAll('#friendsGrid .friend-card').forEach(c=>c.hidden=onlineOnly&&c.dataset.online!=='true'||!!$('friendSearch').value.trim()&&!c.querySelector('strong').textContent.toLowerCase().includes($('friendSearch').value.trim().toLowerCase()))}
@@ -317,18 +339,18 @@ function renderMessage(m,container,mine){
   else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.target='_blank';link.download=m.filename||'';const icon=document.createElement('span');icon.className='filecard-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';link.append(icon,meta);b.appendChild(link)}
   if(m.caption){const c=document.createElement('div');c.textContent=m.caption;b.appendChild(c)}
  }else{const t=document.createElement('div');t.className='message-text';t.textContent=m.text||'';b.appendChild(t)}
- row.appendChild(b);
+ const contentLine=document.createElement('div');contentLine.className='msg-content-line';
+ const reply=document.createElement('button');reply.type='button';reply.className='msg-reply-side';reply.title='Reply';reply.setAttribute('aria-label','Reply to this message');reply.innerHTML='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h9a7 7 0 0 1 7 7v2"/></svg>';reply.onclick=(e)=>{e.preventDefault();e.stopPropagation();setReplyTarget(m)};
+ contentLine.appendChild(b);contentLine.appendChild(reply);row.appendChild(contentLine);
  const meta=document.createElement('div');meta.className='msg-meta';
  if(m.edited){const edited=document.createElement('small');edited.className='edited-label';edited.textContent='edited';meta.appendChild(edited)}
  const tm=document.createElement('div');tm.className='msgtime';tm.textContent=new Date(m.timestamp||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:true});meta.appendChild(tm);row.appendChild(meta);
- const actions=document.createElement('div');actions.className='msg-actions';
- const reply=document.createElement('button');reply.title='Reply';reply.textContent='↩';reply.setAttribute('aria-label','Reply to this message');reply.onclick=(e)=>{e.preventDefault();e.stopPropagation();setReplyTarget(m)};
- actions.append(reply);row.appendChild(actions);
+
  row.addEventListener('click',e=>{if(row.dataset.longPressed==='1'){row.dataset.longPressed='0';e.preventDefault();return}if(messageSelectionMode&&!e.target.closest('button,a,video')){toggleMessageSelection(row,m);e.preventDefault()}else{lastMessageContext={message:m,row,mine}}});
- row.addEventListener('contextmenu',e=>{e.preventDefault();lastMessageContext={message:m,row,mine};openMessageContextMenu(e.clientX,e.clientY,m,row,mine)});
+ row.addEventListener('contextmenu',e=>{e.preventDefault();if(Date.now()-(window.__esharexLastTouchAt||0)<1400)return;lastMessageContext={message:m,row,mine};openMessageContextMenu(e.clientX,e.clientY,m,row,mine)});
  row.tabIndex=0;row.addEventListener('keydown',e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){e.preventDefault();const r=row.getBoundingClientRect();lastMessageContext={message:m,row,mine};openMessageContextMenu(r.left+20,r.top+20,m,row,mine)}});
  let pressTimer=null,pressStart=null,pressMoved=false;
- row.addEventListener('touchstart',e=>{if(e.target.closest('button,a,input,textarea,video'))return;const t=e.touches[0];pressStart={x:t.clientX,y:t.clientY};pressMoved=false;pressTimer=setTimeout(()=>{if(!pressMoved){row.dataset.longPressed='1';enterMessageSelection(row,m);if(navigator.vibrate)navigator.vibrate(25)}},520)},{passive:true});
+ row.addEventListener('touchstart',e=>{window.__esharexLastTouchAt=Date.now();if(e.target.closest('button,a,input,textarea,video'))return;const t=e.touches[0];pressStart={x:t.clientX,y:t.clientY};pressMoved=false;pressTimer=setTimeout(()=>{if(!pressMoved){row.dataset.longPressed='1';enterMessageSelection(row,m);if(navigator.vibrate)navigator.vibrate(25)}},520)},{passive:true});
  row.addEventListener('touchmove',e=>{if(!pressStart)return;const t=e.touches[0];if(Math.abs(t.clientX-pressStart.x)>12||Math.abs(t.clientY-pressStart.y)>12){pressMoved=true;clearTimeout(pressTimer)}},{passive:true});
  row.addEventListener('touchend',()=>{clearTimeout(pressTimer);pressStart=null},{passive:true});
  let touchX=0,touchY=0,touchStarted=false;row.addEventListener('touchstart',e=>{const t=e.changedTouches[0];if(e.target.closest('button,a,input,textarea')){touchStarted=false;return}touchX=t.clientX;touchY=t.clientY;touchStarted=true},{passive:true,capture:true});row.addEventListener('touchend',e=>{if(!touchStarted)return;touchStarted=false;const t=e.changedTouches[0],dx=t.clientX-touchX,dy=t.clientY-touchY;if(dx>75&&dx>Math.abs(dy)*1.35)setReplyTarget(m)},{passive:true,capture:true});
