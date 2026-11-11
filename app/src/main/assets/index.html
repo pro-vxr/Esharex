@@ -234,7 +234,7 @@ function navigate(e,p){if(e)e.preventDefault();if(!myName&&p!=='/')return toast(
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2300)}
 async function api(url,opts={}){const r=await fetch(url,opts);if(!r.ok)throw new Error((await r.text())||r.statusText);return r.json()}
 async function joinNetwork(){myName=$('joinName').value.trim();if(!myName)return toast('Choose a display name first');localStorage.setItem('esharex_name',myName);try{await api('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId,name:myName})});if(isNative){try{const s=await api('/api/server-info');$('ipUnder').textContent=s.address;$('ipUnder').style.display='block'}catch(_){}}go('/chat');startPresence();toast('Welcome to eShareX, '+myName)}catch(e){toast('Could not join. Make sure you are connected to the host network.');}}
-function startPresence(){if(poller)clearInterval(poller);if(heartbeat)clearInterval(heartbeat);heartbeat=setInterval(()=>api('/api/presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId})}).catch(()=>{}),15000);poller=setInterval(()=>{if(location.pathname==='/chat')loadGeneral();if(location.pathname==='/friends')loadPeople();if(currentPeer)loadDM()},2500);api('/api/presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId})}).catch(()=>{});}
+function startPresence(){if(poller)clearInterval(poller);if(heartbeat)clearInterval(heartbeat);heartbeat=setInterval(()=>api('/api/presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId})}).catch(()=>{}),15000);poller=setInterval(()=>{if(location.pathname==='/chat'){loadGeneral();loadPeople()}if(location.pathname==='/friends')loadPeople();if(currentPeer)loadDM()},2500);api('/api/presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deviceId})}).catch(()=>{});}
 let replyTarget=null,mediaRecorder=null,recordedChunks=[],pendingFile=null,editingMessage=null;
 function messagePreview(m){return m.text||m.caption||m.filename||'Attachment'}
 function jumpToOriginal(messageId){if(!messageId)return toast('Original message is no longer available');const box=currentPeer?$('dmMessages'):$('generalMessages');const target=[...box.querySelectorAll('.msgrow')].find(row=>row.dataset.messageId===messageId);if(!target)return toast('Original message is not loaded');target.scrollIntoView({behavior:'smooth',block:'center'});target.classList.add('reply-target-flash');setTimeout(()=>target.classList.remove('reply-target-flash'),1800)}
@@ -357,6 +357,19 @@ body.conversation-mode .messages{padding-bottom:8px;scroll-padding-bottom:8px}
 .msgrow.reply-target-flash .bubble{outline:2px solid var(--accent);box-shadow:0 0 0 5px rgba(183,243,91,.13);transition:box-shadow .2s ease}
 .quoted-message{cursor:pointer;user-select:none;-webkit-user-select:none}
 @media(max-width:850px){.layout{padding-bottom:8px}.footer{padding-top:10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}}
+
+/* 2.4.7 compact message and reply styling */
+.quoted-message{
+ display:block;width:fit-content;max-width:100%;margin:0 0 6px;padding:3px 7px;
+ border:0;border-left:2px solid var(--accent);border-radius:5px;
+ background:rgba(0,0,0,.10);color:inherit;text-align:left;
+ font:inherit;font-size:12px;line-height:1.25;white-space:nowrap;
+ overflow:hidden;text-overflow:ellipsis;cursor:pointer;
+}
+.mine .quoted-message{background:rgba(0,0,0,.10);color:#26351a;border-left-color:#526d2b}
+.msgname{margin-bottom:3px}
+.bubble{padding:9px 12px;line-height:1.4}
+.msgrow .bubble.media-bubble{padding:7px}
 </style>
 <script>
 /* Keep the newest message visible when the mobile keyboard changes the viewport. */
