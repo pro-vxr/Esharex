@@ -229,7 +229,7 @@ let currentPeer=null,seenGeneral=new Set(),seenDM=new Set(),poller=null,heartbea
 const isNative=/Android/i.test(navigator.userAgent)&&location.hostname==='127.0.0.1';
 if(myName)$('joinName').value=myName;
 if(!isNative)document.body.classList.add('web-mode');else document.body.classList.add('native-mode');
-function route(){let p=location.pathname;if(!['/','/chat','/friends'].includes(p))p='/';if(myName&&p==='/'){history.replaceState({},'','/chat');p='/chat'}if(!myName&&p!=='/'){history.replaceState({},'','/');p='/'}document.body.classList.toggle('conversation-mode',p==='/chat'||p==='/friends');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));const ids={'/':'homePage','/chat':'chatPage','/friends':'friendsPage'};$(ids[p]).classList.add('active');document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.route===p));$('moreMenu').classList.remove('show');$('exportMenuItem').style.display=p==='/'?'none':'block';$('logoutMenuItem').style.display=p==='/'?'none':'block';document.querySelector('.nav').style.display=p==='/'?'none':'flex';document.querySelector('.footer').style.display=p==='/'?'block':'none';if(p==='/chat'&&myName){if(!currentPeer){$('dmPanel').style.display='none';document.querySelector('.chat-shell').style.display='block';$('conversationName').textContent='General chat'}loadGeneral();loadPeople()}if(p==='/friends'&&myName)loadPeople();}
+function route(){let p=location.pathname;if(!['/','/chat','/friends'].includes(p))p='/';if(myName&&p==='/'){history.replaceState({},'','/chat');p='/chat'}if(!myName&&p!=='/'){history.replaceState({},'','/');p='/'}document.body.classList.toggle('conversation-mode',p==='/chat'||p==='/friends');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));const ids={'/':'homePage','/chat':'chatPage','/friends':'friendsPage'};$(ids[p]).classList.add('active');document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.route===p));$('moreMenu').classList.remove('show');$('exportMenuItem').style.display=p==='/'?'none':'block';$('logoutMenuItem').style.display=p==='/'?'none':'block';document.querySelector('.nav').style.display=p==='/'?'none':'flex';document.querySelector('.footer').style.display=p==='/'?'block':'none';if(p==='/chat'&&myName){if(!currentPeer){$('dmPanel').style.display='none';document.querySelector('.chat-shell').style.display='block';$('conversationName').textContent='General chat'}loadGeneral();loadPeople()}if(p==='/friends'&&myName)loadPeople();if(p==='/'){refreshPublicMemberCount();loadLandingConnection()}}
 function navigate(e,p){if(e)e.preventDefault();if(!myName&&p!=='/')return toast('Join eShareX first');history.pushState({},'',p);route()}function go(p){history.pushState({},'',p);route()}window.addEventListener('popstate',route);
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2300)}
 async function api(url,opts={}){const r=await fetch(url,opts);if(!r.ok)throw new Error((await r.text())||r.statusText);return r.json()}
@@ -320,8 +320,9 @@ updateAppViewportHeight();
 window.addEventListener('resize',updateAppViewportHeight,{passive:true});
 if(window.visualViewport){window.visualViewport.addEventListener('resize',updateAppViewportHeight,{passive:true});window.visualViewport.addEventListener('scroll',updateAppViewportHeight,{passive:true});}
 
-if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('/sw.js').catch(()=>{});loadLandingConnection();setInterval(()=>{if(location.pathname==='/')loadLandingConnection()},5000);
+if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('/sw.js').catch(()=>{});loadLandingConnection();refreshPublicMemberCount();setInterval(()=>{if(location.pathname==='/'){loadLandingConnection();refreshPublicMemberCount()}},5000);
 async function loadLandingConnection(){try{const info=await api('/api/server-info');if(info.available===false||!info.ip||info.ip==='127.0.0.1'){serverAddress='';$('homeIp').textContent='Connect to Wi-Fi or turn on your hotspot';return}serverAddress=info.address;$('homeIp').textContent=info.address;if($('homeQrImage'))$('homeQrImage').src='/api/qr?text='+encodeURIComponent(info.address)}catch(_){serverAddress='';$('homeIp').textContent='Local address temporarily unavailable'}}
+async function refreshPublicMemberCount(){try{const users=await api('/api/users');const online=users.filter(u=>u.online).length;$('memberCount').textContent=online}catch(_){}}
 function toggleGuide(){const c=$('guideContent'),b=$('guideToggle');c.hidden=!c.hidden;b.textContent=c.hidden?'Show':'Hide'}
 function renderNearbyDevices(items){const box=$('nearbyDevices'),status=$('nearbyStatus');box.innerHTML='';if(!items||!items.length){status.textContent='No other eShareX devices found yet. Make sure both devices are on the same Wi-Fi or hotspot.';return}status.textContent=items.length+' device(s) found';items.forEach(d=>{const row=document.createElement('div');row.className='nearby-device';const info=document.createElement('div');const name=document.createElement('strong');name.textContent=d.name||'eShareX device';const addr=document.createElement('small');addr.textContent=d.host+':'+d.port;info.append(name,addr);const btn=document.createElement('button');btn.textContent='Join';btn.onclick=()=>{if(window.AndroidBridge&&AndroidBridge.joinNearby)AndroidBridge.joinNearby('http://'+d.host+':'+d.port+'/')};row.append(info,btn);box.append(row)})}
 function startNearbyDiscovery(){if(!isNative||!window.AndroidBridge||!AndroidBridge.startDiscovery)return;$('nearbyPanel').hidden=false;AndroidBridge.startDiscovery()}
@@ -331,7 +332,6 @@ function requestFirstOpenPermission(){if(!isNative)return;if(localStorage.getIte
 if(myName){startPresence()}route();if(location.pathname==='/'&&!myName){loadLandingConnection();startNearbyDiscovery();setInterval(loadLandingConnection,5000)}requestFirstOpenPermission()
 // Enter inserts a newline; the send button sends the message.
 </script>
-</body></html>
 <style>
 /* 2.4.3 media presentation and reply fixes */
 .filecard{display:flex;align-items:center;gap:9px;max-width:100%;padding:9px 10px;border-radius:10px;background:#0b1119;color:#f3f6fb!important;min-width:0}
@@ -352,6 +352,11 @@ body.conversation-mode .messages{padding-bottom:8px;scroll-padding-bottom:8px}
  .filecard{padding:8px 9px;gap:8px}
  body.conversation-mode .messages{padding-bottom:8px;scroll-padding-bottom:8px}
 }
+
+/* 2.4.6 viewport footer and reply navigation */
+.msgrow.reply-target-flash .bubble{outline:2px solid var(--accent);box-shadow:0 0 0 5px rgba(183,243,91,.13);transition:box-shadow .2s ease}
+.quoted-message{cursor:pointer;user-select:none;-webkit-user-select:none}
+@media(max-width:850px){.layout{padding-bottom:8px}.footer{padding-top:10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}}
 </style>
 <script>
 /* Keep the newest message visible when the mobile keyboard changes the viewport. */
@@ -372,8 +377,5 @@ body.conversation-mode .messages{padding-bottom:8px;scroll-padding-bottom:8px}
  }
 })();
 </script>
-
-/* 2.4.5 viewport footer and reply navigation */
-.msgrow.reply-target-flash .bubble{outline:2px solid var(--accent);box-shadow:0 0 0 5px rgba(183,243,91,.13);transition:box-shadow .2s ease}
-.quoted-message{cursor:pointer;user-select:none;-webkit-user-select:none}
-@media(max-width:850px){.layout{padding-bottom:8px}.footer{padding-top:10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}}
+</body>
+</html>
