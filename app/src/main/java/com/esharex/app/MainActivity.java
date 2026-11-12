@@ -206,6 +206,16 @@ public class MainActivity extends Activity {
         public String getDeviceId() { return getStableDeviceId(); }
 
         @JavascriptInterface
+        public void exitApp() {
+            runOnUiThread(() -> {
+                try { stopService(new Intent(MainActivity.this, ShareServerService.class)); } catch (Exception ignored) {}
+                stopDiscovery();
+                if (Build.VERSION.SDK_INT >= 21) finishAndRemoveTask();
+                else finish();
+            });
+        }
+
+        @JavascriptInterface
         public void startDiscovery() {
             runOnUiThread(() -> beginDiscovery());
         }

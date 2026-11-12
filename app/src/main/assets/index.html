@@ -300,6 +300,49 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
 }
 
 </style>
+\n<style id="esharex-260-global-refinements">
+/* 2.6.0: consistent compact UI across Android WebView, mobile web and desktop web */
+.friends-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:10px;align-items:start}
+.friend-card{min-width:0;min-height:74px;padding:11px 13px!important;gap:10px;border-radius:20px;box-shadow:0 8px 24px #0004}
+.friend-card .avatar{width:38px;height:38px;flex:0 0 38px;font-size:14px}
+.friend-card .personinfo{flex:1 1 auto;min-width:0}
+.friend-card .personinfo strong{font-size:13px;line-height:1.25}
+.friend-card .personinfo small{font-size:10px;line-height:1.25;margin-top:3px}
+.friend-card .friend-message-btn{flex:0 0 auto;min-width:84px;min-height:36px;padding:8px 10px!important;font-size:11px!important;border-radius:999px}
+.friend-card .friend-unread,.friend-card .friend-unread-placeholder{flex:0 0 30px;width:30px;height:30px;margin-left:0}
+.friend-card .friend-unread{position:static!important;top:auto!important;right:auto!important}
+.friend-card .friend-unread-placeholder svg{width:16px;height:16px}
+.friend-card .friend-unread{font-size:11px}
+.bubble:not(.image-message){font-size:13px;line-height:1.38;padding:8px 10px}
+.message-text{font-size:13px;line-height:1.38;overflow-wrap:anywhere;word-break:normal}
+.bubble.image-message{display:block;box-sizing:border-box;width:fit-content!important;max-width:min(76%,380px);padding:7px;overflow:hidden}
+.bubble.image-message img{display:block;width:auto!important;height:auto!important;max-width:100%!important;max-height:260px!important;margin:0 auto;object-fit:contain}
+.bubble.image-message .media-caption{display:block;max-width:100%;margin-top:6px;font-size:13px;line-height:1.38;overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap}
+.msg-content-line{max-width:100%;min-width:0}
+.msg-content-line .bubble{min-width:0}
+.preview-modal{width:min(900px,96vw);height:auto!important;max-height:92dvh;gap:10px;padding:12px}
+.media-preview-stage{flex:0 1 auto;min-height:0;max-height:68dvh;padding:7px}
+.media-preview-element,.media-preview-stage img.media-preview-element,.media-preview-stage video.media-preview-element{display:block;width:auto;height:auto;max-width:100%;max-height:66dvh;object-fit:contain}
+.media-preview-actions{flex:0 0 auto}
+.menu{z-index:1250;max-height:min(75dvh,560px);overflow:auto}
+.menu button{min-height:42px}
+@media(max-width:600px){
+ .friends-grid{grid-template-columns:minmax(0,1fr);gap:9px}
+ .friend-card{min-height:70px;padding:10px 12px!important;gap:9px}
+ .friend-card .avatar{width:36px;height:36px;flex-basis:36px}
+ .friend-card .friend-message-btn{min-width:80px;min-height:35px;padding:7px 9px!important;font-size:10.5px!important}
+ .friend-card .friend-unread,.friend-card .friend-unread-placeholder{flex-basis:30px;width:30px;height:30px}
+ .bubble:not(.image-message){font-size:13px;padding:8px 10px}
+ .bubble.image-message{max-width:min(78%,340px)}
+ .bubble.image-message img{max-height:240px!important}
+ .bubble.image-message .media-caption{font-size:12.5px}
+ .preview-modal{width:100%;max-width:100%;max-height:92dvh;padding:10px}
+ .media-preview-stage{max-height:68dvh}
+ .media-preview-element,.media-preview-stage img.media-preview-element,.media-preview-stage video.media-preview-element{max-height:66dvh}
+}
+@media(min-width:601px) and (max-width:850px){.friends-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:851px){.friends-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}.bubble.image-message{max-width:min(68%,420px)}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -307,11 +350,12 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
  <div class="brand" aria-label="eShareX"><span class="brandmark">eX</span><span>eShareX</span></div>
  <div class="top-actions"><button class="iconbtn share-action" aria-label="Share eShareX" onclick="shareApp()">↗</button><button class="iconbtn" aria-label="More options" onclick="toggleMenu()">⋮</button></div>
  <div class="menu" id="moreMenu">
-  <button id="exportMenuItem" onclick="exportCurrentConversation()">⇩ &nbsp; Export conversation</button>
+  <button onclick="exitApp()">⏻ &nbsp; Exit App</button>
+   <button id="serverMenuItem" onclick="showServerInfo()">⌁ &nbsp; Server Management</button>
+   <button id="exportMenuItem" onclick="exportCurrentConversation()">⇩ &nbsp; Export conversation</button>
   <button id="logoutMenuItem" onclick="logout()">↪ &nbsp; Logout</button>
   <button id="installMenuItem" onclick="installWebApp()">↓ &nbsp; Install App</button>
   <button onclick="enableNotifications()">♧ &nbsp; Enable notifications</button>
-  <button onclick="showServerInfo()">⌁ &nbsp; Server information</button>
  </div>
 </header>
 <main class="layout">
@@ -370,7 +414,7 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
 </main>
 <footer class="footer">eShareX • Built for sharing on your local network</footer>
 </div>
-<div class="modal" id="infoModal"><div class="modalbox"><h3>Server information</h3><p id="serverAddress">Loading…</p><button class="btn" onclick="copyAddress()">Copy address</button><div class="server-qr" id="serverQr"><img id="serverQrImage" alt="QR code for eShareX server"><small>Scan to connect from another device on the same network</small></div><button class="btn secondary" onclick="hideInfo()">Close</button></div></div>
+<div class="modal" id="infoModal"><div class="modalbox"><h3>Server Management</h3><p id="serverAddress">Loading…</p><button class="btn" onclick="copyAddress()">Copy address</button><div class="server-qr" id="serverQr"><img id="serverQrImage" alt="QR code for eShareX server"><small>Scan to connect from another device on the same network</small></div><button class="btn secondary" onclick="hideInfo()">Close</button></div></div>
 <div class="modal media-modal" id="mediaModal" onclick="if(event.target===this)closeMedia()"><div class="modalbox preview-modal" id="mediaContent" onclick="event.stopPropagation()"></div></div>
 <div class="modal" id="editModal"><div class="modalbox"><h3>Edit message</h3><textarea id="editText" class="edit-textarea" rows="4" maxlength="4000"></textarea><div class="modal-actions"><button class="btn secondary" onclick="closeEdit()">Cancel</button><button class="btn" onclick="saveEdit()">Save changes</button></div></div></div>
 <div class="modal" id="attachmentModal"><div class="modalbox attachment-box"><div class="attachment-head"><div><h3>Send attachment</h3><p>Preview your file before sending</p></div><button class="reply-cancel" onclick="cancelAttachment()">×</button></div><div id="attachmentPreview" class="attachment-preview"></div><label class="caption-label" for="attachmentCaption">Add a caption (optional)</label><textarea id="attachmentCaption" class="edit-textarea" rows="2" placeholder="Write a message about this attachment..."></textarea><div class="modal-actions"><button class="btn secondary" onclick="cancelAttachment()">Cancel</button><button class="btn" id="sendAttachmentBtn" onclick="sendAttachment()">Send attachment</button></div></div></div>
@@ -471,7 +515,7 @@ function renderMessage(m,container,mine){
  if(m.replyTo){const q=document.createElement('button');q.type='button';q.className='quoted-message';q.textContent='↳ '+(m.replyTo.text||m.replyTo.filename||'Attachment');q.title='Jump to original message';q.addEventListener('click',()=>jumpToOriginal(m.replyTo.messageId));b.appendChild(q)}
  if(m.type==='file'){
   b.classList.add('media-bubble');
-  if((m.mime||'').startsWith('image/')){b.classList.add('image-message');const im=document.createElement('img');im.src=m.url;im.alt=m.filename||'Shared image';im.loading='lazy';im.onclick=()=>openMedia('img',m.url,m.filename);const sizeBubbleToImage=()=>{if(im.naturalWidth&&im.clientWidth){b.style.width=(im.clientWidth+18)+'px'}};im.addEventListener('load',sizeBubbleToImage);b.appendChild(im);if(im.complete)requestAnimationFrame(sizeBubbleToImage)}
+  if((m.mime||'').startsWith('image/')){b.classList.add('image-message');const im=document.createElement('img');im.src=m.url;im.alt=m.filename||'Shared image';im.loading='lazy';im.onclick=()=>openMedia('img',m.url,m.filename);b.appendChild(im)}
   else if((m.mime||'').startsWith('video/')){const videoWrap=document.createElement('div');videoWrap.className='video-message-wrap';const v=document.createElement('video');v.src=m.url;v.controls=true;v.preload='metadata';v.addEventListener('dblclick',()=>openMedia('video',m.url,m.filename));const previewBtn=document.createElement('button');previewBtn.type='button';previewBtn.className='media-preview-btn';previewBtn.textContent='Open preview';previewBtn.onclick=()=>openMedia('video',m.url,m.filename);videoWrap.append(v,previewBtn);b.appendChild(videoWrap)}
   else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.download=m.filename||'download';link.setAttribute('aria-label','Download '+(m.filename||'file'));const icon=document.createElement('span');icon.className='filecard-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';const action=document.createElement('span');action.className='filecard-download-text';action.textContent='Download';link.append(icon,meta,action);b.appendChild(link)}
   if(m.caption){const c=document.createElement('div');c.className='media-caption';c.textContent=m.caption;b.appendChild(c)}
@@ -525,12 +569,22 @@ function updateUnreadBadges(){
 async function refreshUnread(){if(!myName)return;try{unreadState=await api('/api/unread?id='+encodeURIComponent(deviceId));updateUnreadBadges()}catch(_){}}
 async function markConversationRead(peerId,latestTs){const key=peerId?'dm:'+peerId:'general';const marker=Math.max(0,Number(latestTs)||0);if(readAck[key]!==undefined&&marker<=readAck[key])return;readAck[key]=marker;try{await api('/api/read',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify(peerId?{id:deviceId,peer:peerId,through:marker}:{id:deviceId,through:marker})});await refreshUnread()}catch(_){if(readAck[key]===marker)delete readAck[key]}}
 async function pollIncomingNotifications(){if(isNative||!myName||notificationPollBusy)return;notificationPollBusy=true;try{const events=await api('/api/notifications?id='+encodeURIComponent(deviceId));for(const event of events){const viewingSameDM=event.kind==='direct'&&currentPeer&&currentPeer.id===event.peer&&location.pathname==='/chat'&&!document.hidden;const viewingGeneral=event.kind==='general'&&!currentPeer&&location.pathname==='/chat'&&!document.hidden;if(viewingSameDM||viewingGeneral)continue;const title='eShareX · '+(event.sender||'New message');const body=String(event.text||'New message').slice(0,180);if(isNative&&window.AndroidBridge?.showNotification)window.AndroidBridge.showNotification(title,body,event.kind==='direct'?event.peer:'');else if('Notification'in window&&Notification.permission==='granted'){const n=new Notification(title,{body,tag:'esharex-'+event.id});n.onclick=()=>{window.focus();if(event.kind==='direct')openDM({id:event.peer,name:event.sender});else window.openNotificationConversation('',event.sender||'General chat');n.close()}}}}catch(_){}finally{notificationPollBusy=false}}
-async function loadPeople(){if(!myName)return;try{let users=await api('/api/users?id='+encodeURIComponent(deviceId));let online=users.filter(u=>u.online);$('memberCount').textContent=online.length;$('chatOnline').textContent=online.length+' online';$('friendsOnline').textContent=online.length+' online';if(currentPeer){const livePeer=users.find(u=>u.id===currentPeer.id);if(livePeer){currentPeer.online=!!livePeer.online;$('chatOnline').textContent=livePeer.online?'Online':'Offline'}}let others=users.filter(u=>u.id!==deviceId&&!u.self);$('onlineList').innerHTML='';$('friendsGrid').innerHTML='';if(!others.length)$('friendsGrid').innerHTML='<div class="panel empty">You are the first one here. Invite someone to join your network.</div>';others.forEach(u=>{let row=document.createElement('div');row.className='person';row.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><span class="dot"></span>';row.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();row.querySelector('strong').textContent=u.name;row.querySelector('small').textContent=u.online?'Online':'Offline';row.querySelector('.dot').classList.toggle('on',u.online);$('onlineList').appendChild(row);let card=document.createElement('div');card.className='panel friend-card';card.dataset.online=u.online?'true':'false';card.dataset.userId=u.id;card.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><button class="btn friend-message-btn" type="button">Message</button><span class="friend-unread-placeholder" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg></span>';card.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();card.querySelector('strong').textContent=u.name;card.querySelector('small').textContent=u.online?'● Online':'○ Offline';card.querySelector('small').style.color=u.online?'var(--accent)':'var(--muted)';card.querySelector('.friend-message-btn').onclick=()=>openDM(u);$('friendsGrid').appendChild(card)});filterFriends();updateUnreadBadges()}catch(_){}}
+async function loadPeople(){if(!myName)return;try{let users=await api('/api/users?id='+encodeURIComponent(deviceId));let online=users.filter(u=>u.online);let onlineFriends=users.filter(u=>u.online&&u.id!==deviceId&&!u.self);$('memberCount').textContent=online.length;$('chatOnline').textContent=online.length+' online';$('friendsOnline').textContent=onlineFriends.length+' online';if(currentPeer){const livePeer=users.find(u=>u.id===currentPeer.id);if(livePeer){currentPeer.online=!!livePeer.online;$('chatOnline').textContent=livePeer.online?'Online':'Offline'}}let others=users.filter(u=>u.id!==deviceId&&!u.self);$('onlineList').innerHTML='';$('friendsGrid').innerHTML='';if(!others.length)$('friendsGrid').innerHTML='<div class="panel empty">You are the first one here. Invite someone to join your network.</div>';others.forEach(u=>{let row=document.createElement('div');row.className='person';row.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><span class="dot"></span>';row.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();row.querySelector('strong').textContent=u.name;row.querySelector('small').textContent=u.online?'Online':'Offline';row.querySelector('.dot').classList.toggle('on',u.online);$('onlineList').appendChild(row);let card=document.createElement('div');card.className='panel friend-card';card.dataset.online=u.online?'true':'false';card.dataset.userId=u.id;card.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><button class="btn friend-message-btn" type="button">Message</button><span class="friend-unread-placeholder" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg></span>';card.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();card.querySelector('strong').textContent=u.name;card.querySelector('small').textContent=u.online?'● Online':'○ Offline';card.querySelector('small').style.color=u.online?'var(--accent)':'var(--muted)';card.querySelector('.friend-message-btn').onclick=()=>openDM(u);$('friendsGrid').appendChild(card)});filterFriends();updateUnreadBadges()}catch(_){}}
 function openDM(u){lastMessageContext=null;$('chatActionsMenu').hidden=true;if(currentPeer)saveDraft(draftKey(currentPeer.id),$('dmInput'));cancelReply();dmRequestSeq++;currentPeer={...u};seenDM.clear();const box=$('dmMessages');box.innerHTML='';box.dataset.initialized='0';box.dataset.userReading='0';box.scrollTop=0;restoreDraft(draftKey(u.id),$('dmInput'));go('/chat');document.querySelector('.chat-shell').style.display='none';$('dmPanel').style.display='flex';$('conversationName').textContent=u.name;$('dmTitle').textContent=u.name;$('chatOnline').textContent=u.online?'Online':'Offline';syncNativeViewingState();loadDM(u.id,true);$('dmInput').blur();if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur()}
 function closeDM(){lastMessageContext=null;$('chatActionsMenu').hidden=true;if(currentPeer)saveDraft(draftKey(currentPeer.id),$('dmInput'));cancelReply();dmRequestSeq++;currentPeer=null;seenDM.clear();$('dmMessages').innerHTML='';$('dmMessages').dataset.initialized='0';$('dmPanel').style.display='none';document.querySelector('.chat-shell').style.display='block';restoreDraft('general',$('generalInput'));$('conversationName').textContent='General chat';syncNativeViewingState();loadGeneral()}
 async function loadDM(peerId,autoFocusIfNew=false){const selectedPeerId=peerId||(currentPeer&&currentPeer.id);if(!selectedPeerId||!currentPeer||currentPeer.id!==selectedPeerId)return;const requestId=++dmRequestSeq;try{const arr=await api('/api/dm?me='+encodeURIComponent(deviceId)+'&peer='+encodeURIComponent(selectedPeerId));if(!currentPeer||currentPeer.id!==selectedPeerId||requestId!==dmRequestSeq)return;const box=$('dmMessages');const normalized=arr.map(m=>({...m,username:m.from===deviceId?'You':m.fromName,userId:m.from,text:m.text,timestamp:m.timestamp}));updateMessageList(normalized,box,m=>m.from===deviceId,seenDM);if(autoFocusIfNew&&normalized.length===0&&!draftStore.has(draftKey(selectedPeerId))){$('dmInput').focus()}if(!document.hidden){const latest=normalized.reduce((n,m)=>Math.max(n,Number(m.timestamp)||0),0);markConversationRead(selectedPeerId,latest)}}catch(_){}}
 async function sendDM(){const text=$('dmInput').value.replace(/\r\n?/g,'\n').trim();if(!text||!currentPeer)return;const peerId=currentPeer.id;const reply=replyTarget&&replyTarget._conversation==='dm:'+peerId?{text:messagePreview(replyTarget),messageId:replyTarget.id,username:replyTarget.username||replyTarget.fromName||''}:null;try{await api('/api/dm',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({from:deviceId,to:peerId,text,replyTo:reply})});if(currentPeer&&currentPeer.id===peerId){$('dmInput').value='';$('dmInput').style.height='40px';saveDraft(draftKey(peerId),$('dmInput'));cancelReply();await loadDM(peerId)}}catch(_){toast('Private message could not be sent')}}
 function toggleMenu(){$('moreMenu').classList.toggle('show')}
+async function exitApp(){
+ $('moreMenu').classList.remove('show');
+ if(isNative&&window.AndroidBridge&&typeof AndroidBridge.exitApp==='function'){
+  try{if(myName)await api('/api/leave',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({id:deviceId})})}catch(_){}
+  try{AndroidBridge.exitApp()}catch(_){toast('Could not close eShareX')}
+  return;
+ }
+ toast('To exit eShareX, close this browser tab or window.');
+}
+
 async function exportCurrentConversation(){ $('moreMenu').classList.remove('show');const url=currentPeer?'/api/export/dm?me='+encodeURIComponent(deviceId)+'&peer='+encodeURIComponent(currentPeer.id):'/api/export/chat';try{const r=await fetch(url);if(!r.ok)throw new Error('Export failed');const blob=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=currentPeer?'esharex-private-chat.txt':'esharex-chat.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Conversation exported')}catch(_){toast('Could not export conversation')}}
 async function logout(){ $('moreMenu').classList.remove('show');cancelReply();if(isNative&&window.AndroidBridge?.stopNotificationMonitor)AndroidBridge.stopNotificationMonitor();try{await api('/api/leave',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({id:deviceId})})}catch(_){}localStorage.removeItem('esharex_name');myName='';currentPeer=null;if(poller)clearInterval(poller);if(heartbeat)clearInterval(heartbeat);history.replaceState({},'','/');route();$('joinName').value='';toast('You have logged out')}
 async function showServerInfo(){try{let s=await api('/api/server-info');serverAddress=s.address;$('serverAddress').textContent=s.address;$('serverQrImage').src='/api/qr?text='+encodeURIComponent(s.address);$('serverQrImage').onerror=()=>{$('serverQr').style.display='none'};$('serverQr').style.display='flex';$('infoModal').classList.add('show')}catch(_){toast('Server information unavailable')}}

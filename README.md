@@ -1,14 +1,14 @@
-# eShareX 2.5.9
+# eShareX 2.6.0
 
 Local-network chat and file sharing for Android and web.
 
-## 2.5.9 changes
+## 2.6.0 changes
 - Fixed global keyboard viewport handling in General Chat and private conversations.
 - Kept the current scroll position when focusing the composer; only conversations already at the bottom follow the latest message.
 - Moved file-card Download text below the filename while keeping the whole card clickable.
 - Sized image message bubbles to the rendered image and wrapped captions within that width.
 - Removed excessive empty space from media previews by sizing the dialog and preview stage to the media.
-- Corrected the server health endpoint version to 2.5.9 and advanced the PWA cache version.
+- Updated the server health endpoint and PWA cache version to 2.6.0.
 
 ## 2.5.6 changes
 - Wider aligned desktop layout.
@@ -58,3 +58,15 @@ This release is intended for trusted local networks only. The current LAN API id
 - Image message bubbles are sized to the rendered image; long captions wrap within the image width instead of widening the bubble.
 - Media preview dialogs and stages use the media's natural dimensions and aspect ratio rather than stretching to fill a tall empty panel.
 - Consolidated the 2.5.8+ stylesheet into the document head and removed CSS that had been appended after the closing HTML document.
+
+
+## 2.6.0 global UI and app controls
+- Restored compact responsive Friends cards across Android WebView, mobile web and desktop web.
+- Capped chat image display dimensions while preserving aspect ratio; removed image-load code that forced a fixed inline bubble width.
+- Reduced text-message typography and padding slightly for a denser but readable chat.
+- Kept image captions constrained to the image bubble width.
+- Changed media preview sizing to follow the media dimensions instead of stretching the preview stage to fill a fixed-height modal.
+- Added Exit App to the existing overflow menu for the native Android app, with a clear browser-tab guidance message on web.
+- Renamed Server information to Server Management in the overflow menu and management panel.
+- Preserved distinct device identities even when multiple devices use the same display name.
+- Friends online count now excludes the current device, so it reflects online friends rather than counting yourself.

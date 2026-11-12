@@ -10,8 +10,8 @@ android {
         applicationId 'com.esharex.app'
         minSdk 24
         targetSdk 33
-        versionCode 27
-        versionName '2.5.9'
+        versionCode 28
+        versionName '2.6.0'
     }
 
     compileOptions {
