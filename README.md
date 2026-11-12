@@ -36,3 +36,9 @@ Android message alerts use a foreground service to poll the connected LAN host w
 ## Security note
 
 This release is intended for trusted local networks only. The current LAN API identifies participants by device ID but does not yet provide cryptographic peer authentication or end-to-end encryption. Do not expose port 8080 to the public internet or use it for sensitive conversations on an untrusted network.
+
+
+## 2.5.8 interface fixes
+- Replying to an older message keeps that message anchored while the mobile keyboard opens; keyboard resizing no longer forces the message list to the latest item.
+- Added a floating down-arrow in each chat pane when the reader scrolls away from the latest messages. Tapping it smoothly returns to the bottom.
+- Simplified file attachment cards: the filename wraps naturally, the Download label is text-only, and the whole card remains the download target.

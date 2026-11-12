@@ -227,14 +227,14 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
   <button onclick="runHeaderMessageAction('select')">Select message</button>
  </div>
  <div class="chat-shell"><div class="panel chat-panel">
-  <div class="messages" id="generalMessages"><div class="empty">Join the network to load messages.</div></div>
+  <div class="messages" id="generalMessages"><div class="empty">Join the network to load messages.</div></div><button class="scroll-latest" id="generalScrollLatest" type="button" aria-label="Scroll to latest messages" title="Latest messages">↓</button>
   <div class="composer">
    <input type="file" id="fileInput" hidden>
    <div class="reply-strip" id="generalReplyStrip" hidden><div class="reply-strip-copy"><strong id="generalReplyName"></strong><span id="generalReplyText"></span></div><button class="reply-cancel" onclick="cancelReply()" aria-label="Cancel reply">×</button></div>
    <div class="composer-row"><div class="composer-field"><textarea id="generalInput" rows="1" inputmode="text" enterkeyhint="enter" autocapitalize="sentences" autocomplete="off" placeholder="Type a message..." aria-label="Message"></textarea><button class="attach-inline" onclick="chooseAttachment()" title="Attach media" aria-label="Attach media">＋</button></div><button class="send" onclick="sendGeneral()" aria-label="Send message">➤</button></div>
   </div>
  </div><aside class="panel sidepanel"><h3>People online</h3><div id="onlineList"></div></aside></div>
-<div id="dmPanel" class="panel chat-panel" style="display:none"><div class="chathead"><strong id="dmTitle">Private conversation</strong><button class="iconbtn" onclick="closeDM()">×</button></div><div class="messages" id="dmMessages"></div><div class="composer"><div class="reply-strip" id="dmReplyStrip" hidden><div class="reply-strip-copy"><strong id="dmReplyName"></strong><span id="dmReplyText"></span></div><button class="reply-cancel" onclick="cancelReply()" aria-label="Cancel reply">×</button></div><div class="composer-row"><div class="composer-field"><textarea id="dmInput" rows="1" inputmode="text" enterkeyhint="enter" autocapitalize="sentences" autocomplete="off" placeholder="Type a message..." aria-label="Private message"></textarea><button class="attach-inline" onclick="chooseAttachment()" title="Attach media" aria-label="Attach media">＋</button></div><button class="send" onclick="sendDM()" aria-label="Send message">➤</button></div></div></div>
+<div id="dmPanel" class="panel chat-panel" style="display:none"><div class="chathead"><strong id="dmTitle">Private conversation</strong><button class="iconbtn" onclick="closeDM()">×</button></div><div class="messages" id="dmMessages"></div><button class="scroll-latest" id="dmScrollLatest" type="button" aria-label="Scroll to latest messages" title="Latest messages">↓</button><div class="composer"><div class="reply-strip" id="dmReplyStrip" hidden><div class="reply-strip-copy"><strong id="dmReplyName"></strong><span id="dmReplyText"></span></div><button class="reply-cancel" onclick="cancelReply()" aria-label="Cancel reply">×</button></div><div class="composer-row"><div class="composer-field"><textarea id="dmInput" rows="1" inputmode="text" enterkeyhint="enter" autocapitalize="sentences" autocomplete="off" placeholder="Type a message..." aria-label="Private message"></textarea><button class="attach-inline" onclick="chooseAttachment()" title="Attach media" aria-label="Attach media">＋</button></div><button class="send" onclick="sendDM()" aria-label="Send message">➤</button></div></div></div>
 </section>
 <section class="page" id="friendsPage">
  <div class="chat-context"><span class="context-icon">♧</span><div class="context-title"><strong>Friends</strong><small id="friendsOnline">0 online</small></div><button class="iconbtn" aria-label="Friends options" onclick="toggleFriendsMenu()">⋮</button></div>
@@ -352,7 +352,7 @@ function renderMessage(m,container,mine){
   b.classList.add('media-bubble');
   if((m.mime||'').startsWith('image/')){const im=document.createElement('img');im.src=m.url;im.alt=m.filename||'Shared image';im.loading='lazy';im.onclick=()=>openMedia('img',m.url,m.filename);b.appendChild(im)}
   else if((m.mime||'').startsWith('video/')){const videoWrap=document.createElement('div');videoWrap.className='video-message-wrap';const v=document.createElement('video');v.src=m.url;v.controls=true;v.preload='metadata';v.addEventListener('dblclick',()=>openMedia('video',m.url,m.filename));const previewBtn=document.createElement('button');previewBtn.type='button';previewBtn.className='media-preview-btn';previewBtn.textContent='Open preview';previewBtn.onclick=()=>openMedia('video',m.url,m.filename);videoWrap.append(v,previewBtn);b.appendChild(videoWrap)}
-  else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.download=m.filename||'download';link.setAttribute('aria-label','Download '+(m.filename||'file'));const icon=document.createElement('span');icon.className='filecard-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';const action=document.createElement('span');action.className='filecard-download-icon';action.setAttribute('aria-hidden','true');action.innerHTML='<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>';link.append(icon,meta,action);b.appendChild(link)}
+  else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.download=m.filename||'download';link.setAttribute('aria-label','Download '+(m.filename||'file'));const icon=document.createElement('span');icon.className='filecard-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';const action=document.createElement('span');action.className='filecard-download-text';action.textContent='Download';link.append(icon,meta,action);b.appendChild(link)}
   if(m.caption){const c=document.createElement('div');c.textContent=m.caption;b.appendChild(c)}
  }else{const t=document.createElement('div');t.className='message-text';t.textContent=m.text||'';b.appendChild(t)}
  const contentLine=document.createElement('div');contentLine.className='msg-content-line';
@@ -373,7 +373,7 @@ function renderMessage(m,container,mine){
  container.appendChild(row);
 }
 function fileIcon(mime,name){if((mime||'').includes('pdf')||/\.pdf$/i.test(name||''))return '📄';if(/\.(zip|rar|7z)$/i.test(name||''))return '🗜';if((mime||'').startsWith('audio/'))return '🎵';return '📎'}
-function setReplyTarget(m){const dm=!!currentPeer;replyTarget={...m,_conversation:dm?'dm:'+currentPeer.id:'general'};$('generalReplyStrip').hidden=true;$('dmReplyStrip').hidden=true;const strip=$(dm?'dmReplyStrip':'generalReplyStrip');$(dm?'dmReplyName':'generalReplyName').textContent='Replying to '+(m.username||m.fromName||(m.userId===deviceId?'You':'Member'));$(dm?'dmReplyText':'generalReplyText').textContent=messagePreview(m).slice(0,150);strip.hidden=false;const input=$(dm?'dmInput':'generalInput');input.focus()}
+function setReplyTarget(m){const dm=!!currentPeer;replyTarget={...m,_conversation:dm?'dm:'+currentPeer.id:'general'};window.__esharexReplyAnchorId=m.id||'';$('generalReplyStrip').hidden=true;$('dmReplyStrip').hidden=true;const strip=$(dm?'dmReplyStrip':'generalReplyStrip');$(dm?'dmReplyName':'generalReplyName').textContent='Replying to '+(m.username||m.fromName||(m.userId===deviceId?'You':'Member'));$(dm?'dmReplyText':'generalReplyText').textContent=messagePreview(m).slice(0,150);strip.hidden=false;const input=$(dm?'dmInput':'generalInput');input.focus()}
 function cancelReply(){replyTarget=null;$('generalReplyStrip').hidden=true;$('dmReplyStrip').hidden=true}
 function editMessage(m){editingMessage=m;$('editText').value=m.text||'';$('editModal').classList.add('show');setTimeout(()=>$('editText').focus(),100)}
 function closeEdit(){$('editModal').classList.remove('show');editingMessage=null}
@@ -447,6 +447,26 @@ updateAppViewportHeight();
 window.addEventListener('resize',updateAppViewportHeight,{passive:true});
 if(window.visualViewport){window.visualViewport.addEventListener('resize',updateAppViewportHeight,{passive:true});window.visualViewport.addEventListener('scroll',updateAppViewportHeight,{passive:true});}
 
+/* Floating latest-message controls for both chat panes. */
+(function(){
+ const pairs=[['generalMessages','generalScrollLatest'],['dmMessages','dmScrollLatest']];
+ pairs.forEach(([boxId,buttonId])=>{
+   const box=document.getElementById(boxId),button=document.getElementById(buttonId);
+   if(!box||!button)return;
+   const update=()=>{
+     const gap=box.scrollHeight-box.clientHeight-box.scrollTop;
+     button.classList.toggle('visible',gap>110);
+   };
+   box.addEventListener('scroll',update,{passive:true});
+   button.addEventListener('click',()=>{
+     box.scrollTo({top:box.scrollHeight,behavior:'smooth'});
+     box.dataset.userReading='0';
+   });
+   const observer=new MutationObserver(update);
+   observer.observe(box,{childList:true,subtree:true});
+   update();
+ });
+})();
 loadLandingConnection();refreshPublicMemberCount();setInterval(()=>{if(location.pathname==='/'){loadLandingConnection();refreshPublicMemberCount()}},5000);
 async function loadLandingConnection(){try{const info=await api('/api/server-info');if(info.available===false||!info.ip||info.ip==='127.0.0.1'){serverAddress='';$('homeIp').textContent='Connect to Wi-Fi or turn on your hotspot';return}serverAddress=info.address;$('homeIp').textContent=info.address;if($('homeQrImage'))$('homeQrImage').src='/api/qr?text='+encodeURIComponent(info.address)}catch(_){serverAddress='';$('homeIp').textContent='Local address temporarily unavailable'}}
 async function refreshPublicMemberCount(){try{const users=await api('/api/users');const online=users.filter(u=>u.online).length;$('memberCount').textContent=online}catch(_){}}
@@ -586,22 +606,41 @@ body.keyboard-open .footer{display:none!important}
 .chat-actions-menu button:active{background:var(--panel2)}
 </style>
 <script>
-/* Keep the newest message visible when the mobile keyboard changes the viewport. */
+/* Keep the replied-to message anchored when the keyboard changes the viewport. */
 (function(){
- let lastHeight=window.visualViewport?window.visualViewport.height:window.innerHeight;
- function keepLatestVisible(){
-   const active=document.activeElement;
-   if(!active || !['generalInput','dmInput'].includes(active.id)) return;
-   const box=active.id==='dmInput'?document.getElementById('dmMessages'):document.getElementById('generalMessages');
-   if(box) requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight;});
+ let anchorTop=null, pending=false;
+ function captureReplyAnchor(){
+   const id=window.__esharexReplyAnchorId;
+   if(!id)return null;
+   const row=[...document.querySelectorAll('.msgrow')].find(el=>el.dataset.messageId===id);
+   return row||null;
+ }
+ function preserveReplyAnchor(){
+   const row=captureReplyAnchor();
+   if(!row)return;
+   const box=row.closest('.messages');
+   if(!box)return;
+   if(anchorTop===null)anchorTop=row.getBoundingClientRect().top;
+   requestAnimationFrame(()=>{
+     const now=row.getBoundingClientRect().top;
+     const delta=now-anchorTop;
+     if(Math.abs(delta)>1)box.scrollTop+=delta;
+     anchorTop=row.getBoundingClientRect().top;
+   });
  }
  if(window.visualViewport){
    window.visualViewport.addEventListener('resize',()=>{
-     const h=window.visualViewport.height;
-     if(h<lastHeight-40) keepLatestVisible();
-     lastHeight=h;
+     if(window.__esharexReplyAnchorId)preserveReplyAnchor();
    },{passive:true});
  }
+ document.addEventListener('focusin',e=>{
+   if(['generalInput','dmInput'].includes(e.target.id)&&window.__esharexReplyAnchorId){
+     anchorTop=null;preserveReplyAnchor();
+   }
+ });
+ document.addEventListener('click',e=>{
+   if(e.target.closest('.reply-cancel')){window.__esharexReplyAnchorId='';anchorTop=null;}
+ });
 })();
 </script>
 
@@ -692,4 +731,35 @@ body.keyboard-open .footer{display:none!important}
  .media-preview-stage{padding:5px}
  .media-preview-actions .btn{min-height:42px}
 }
+</style>
+
+<style>
+/* eShareX 2.5.8: compact file action and scroll-to-latest control */
+.filecard{
+ display:flex;align-items:flex-start;gap:10px;position:relative;
+ padding:10px 12px;min-height:0;overflow:visible;
+}
+.filecard-icon{flex:0 0 25px;margin-top:1px}
+.filecard-name{
+ flex:1 1 auto;min-width:0;overflow-wrap:anywhere;word-break:break-word;
+ line-height:1.32;padding:0;margin:0;
+}
+.filecard-download-text{
+ flex:0 0 auto;color:var(--accent);font-size:12px;font-weight:700;
+ line-height:1.32;white-space:nowrap;margin:0 0 0 8px;padding:0;
+}
+.filecard-download-icon{display:none!important}
+.chat-panel{position:relative}
+.scroll-latest{
+ position:absolute;right:18px;bottom:82px;z-index:30;
+ width:38px;height:38px;border-radius:50%;border:1px solid #b8f36b66;
+ background:#172019;color:var(--accent);font-size:22px;font-weight:800;
+ display:flex;align-items:center;justify-content:center;
+ box-shadow:0 5px 18px #0009;opacity:0;visibility:hidden;
+ transform:translateY(7px);transition:opacity .18s,transform .18s,visibility .18s;
+ cursor:pointer;touch-action:manipulation;
+}
+.scroll-latest.visible{opacity:1;visibility:visible;transform:translateY(0)}
+.scroll-latest:active{transform:scale(.94)}
+@media(max-width:600px){.scroll-latest{right:13px;bottom:76px;width:36px;height:36px}}
 </style>
