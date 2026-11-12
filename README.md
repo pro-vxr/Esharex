@@ -1,6 +1,14 @@
-# eShareX 2.5.6
+# eShareX 2.5.9
 
 Local-network chat and file sharing for Android and web.
+
+## 2.5.9 changes
+- Fixed global keyboard viewport handling in General Chat and private conversations.
+- Kept the current scroll position when focusing the composer; only conversations already at the bottom follow the latest message.
+- Moved file-card Download text below the filename while keeping the whole card clickable.
+- Sized image message bubbles to the rendered image and wrapped captions within that width.
+- Removed excessive empty space from media previews by sizing the dialog and preview stage to the media.
+- Corrected the server health endpoint version to 2.5.9 and advanced the PWA cache version.
 
 ## 2.5.6 changes
 - Wider aligned desktop layout.
@@ -42,3 +50,11 @@ This release is intended for trusted local networks only. The current LAN API id
 - Replying to an older message keeps that message anchored while the mobile keyboard opens; keyboard resizing no longer forces the message list to the latest item.
 - Added a floating down-arrow in each chat pane when the reader scrolls away from the latest messages. Tapping it smoothly returns to the bottom.
 - Simplified file attachment cards: the filename wraps naturally, the Download label is text-only, and the whole card remains the download target.
+
+
+## 2.5.9 global chat and media fixes
+- Keyboard opening now preserves the current reading position; chats already at the bottom stay pinned to the newest message. Reply anchoring remains active in both General Chat and private conversations.
+- File cards place the Download label beneath the wrapping filename, with the entire card remaining clickable.
+- Image message bubbles are sized to the rendered image; long captions wrap within the image width instead of widening the bubble.
+- Media preview dialogs and stages use the media's natural dimensions and aspect ratio rather than stretching to fill a tall empty panel.
+- Consolidated the 2.5.8+ stylesheet into the document head and removed CSS that had been appended after the closing HTML document.

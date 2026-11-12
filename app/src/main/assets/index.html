@@ -178,6 +178,127 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
  .msg-reply-side{width:27px;height:27px;flex-basis:27px}
 }
 
+
+
+
+/* 2.5.6 desktop alignment, media sizing, downloads and clipboard fallback */
+@media(min-width:851px){
+ .topbar{padding-left:clamp(20px,2.5vw,42px);padding-right:clamp(20px,2.5vw,42px)}
+ .layout{width:min(1600px,100%);padding-left:clamp(20px,2.5vw,42px);padding-right:clamp(20px,2.5vw,42px)}
+ .chat-shell{grid-template-columns:minmax(0,1fr) 270px;gap:18px}
+ .chat-context,.chat-shell,.friends-tools,.friends-grid,.nearby-inline{width:100%;}
+ .chat-context{margin-left:0;margin-right:0}
+ .chat-panel{min-width:0}
+ .messages{padding:24px clamp(20px,2vw,34px)}
+ .bubble.media-bubble{max-width:min(58vw,520px)}
+ .bubble.media-bubble img,.bubble.media-bubble video{max-width:min(48vw,440px);max-height:420px}
+ .video-message-wrap{position:relative}
+ .video-message-wrap video{width:100%;height:auto}
+}
+.filecard-wrap{display:flex;align-items:center;gap:7px;max-width:100%;min-width:0}
+.filecard-wrap .filecard{flex:1;min-width:0}
+.file-download-btn{flex:0 0 34px;width:34px;height:34px;border:1px solid var(--line);border-radius:9px;background:#17202b;color:var(--accent);font-size:19px;font-weight:900}
+.msgrow.mine .file-download-btn{background:#26351b;border-color:#40572b;color:#c8ff82}
+.video-message-wrap{position:relative;max-width:100%}
+.video-message-wrap video{max-width:100%;max-height:330px}
+.media-preview-btn{display:block;margin-top:6px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#202936;color:var(--text);font-size:11px}
+.media-modal{z-index:1500}
+.preview-modal{width:min(1000px,96vw);max-width:96vw;max-height:92vh;overflow:auto;padding:14px;background:#10151e}
+.media-preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.media-preview-head strong{min-width:0;overflow-wrap:anywhere;font-size:13px}
+.media-preview-actions{display:flex;gap:8px;flex:0 0 auto}
+.media-preview-actions .btn{padding:9px 13px;font-size:12px}
+.media-preview-element{display:block;max-width:100%;max-height:78vh;width:auto;height:auto;margin:0 auto;object-fit:contain;border-radius:10px}
+@media(max-width:600px){
+ .media-preview-head{align-items:flex-start;flex-direction:column}
+ .media-preview-actions{width:100%}
+ .media-preview-actions .btn{flex:1}
+ .preview-modal{width:100%;max-width:100%;padding:10px}
+ .media-preview-element{max-height:70vh}
+}
+
+
+
+/* eShareX 2.5.7: attachment, preview, friends and keyboard refinements */
+.friend-card{display:flex;align-items:center;gap:12px;padding:17px 16px;min-width:0}
+.friend-card .personinfo{flex:1;min-width:0}
+.friend-card .friend-message-btn{flex:0 0 auto;min-width:96px}
+.friend-card .friend-unread,.friend-card .friend-unread-placeholder{position:static;flex:0 0 34px;width:34px;height:34px;margin-left:2px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
+.friend-card .friend-unread{background:var(--accent);color:#10150b;font-size:12px;font-weight:900}
+.friend-card .friend-unread-placeholder{color:var(--muted);background:#202936;border:1px solid var(--line)}
+.friend-card .friend-unread-placeholder[hidden]{display:none!important}
+.filecard{display:flex;align-items:center;gap:11px;width:100%;min-width:0;padding:11px 12px;border-radius:12px;background:#0b1119;color:#f3f6fb!important;text-decoration:none;border:1px solid #ffffff20;overflow:hidden}
+.filecard-icon{display:flex;flex:0 0 25px;align-items:center;justify-content:center;color:var(--accent)}
+.filecard-name{flex:1;min-width:0;overflow-wrap:anywhere;word-break:break-word;font-size:13px;line-height:1.35}
+.filecard-download-icon{display:flex;flex:0 0 44px;width:44px;min-height:44px;align-items:center;justify-content:center;margin-left:5px;border-left:1px solid #ffffff20;color:var(--accent)}
+.filecard:hover{border-color:#78994d;background:#101923}
+.msgrow.mine .filecard{background:#0b1119;color:#f3f6fb!important;border-color:#ffffff20}
+.preview-modal{display:flex;flex-direction:column;gap:12px;width:min(1000px,96vw);max-width:96vw;height:min(92dvh,900px);max-height:92dvh;overflow:hidden;padding:14px;background:#10151e}
+.media-preview-filename{display:block;flex:0 0 auto;min-width:0;max-height:3.2em;overflow:auto;overflow-wrap:anywhere;font-size:14px;line-height:1.5}
+.media-preview-stage{display:flex;flex:1 1 auto;min-height:0;align-items:center;justify-content:center;overflow:auto;background:#090d13;border:1px solid var(--line);border-radius:13px;padding:8px}
+.media-preview-element{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:9px;margin:auto}
+.media-preview-stage img.media-preview-element{max-height:100%;max-width:100%}
+.media-preview-stage video.media-preview-element{max-height:100%;max-width:100%}
+.media-preview-actions{display:flex;flex:0 0 auto;gap:9px;width:100%}
+.media-preview-actions .btn{flex:1;min-height:44px;padding:10px 14px}
+@media(max-width:600px){
+ .friend-card{padding:14px 12px;gap:9px}
+ .friend-card .friend-message-btn{min-width:82px;padding:9px 10px;font-size:11px}
+ .friend-card .friend-unread,.friend-card .friend-unread-placeholder{flex-basis:30px;width:30px;height:30px}
+ .preview-modal{width:100%;max-width:100%;height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);padding:10px;gap:9px}
+ .media-preview-filename{font-size:13px}
+ .media-preview-stage{padding:5px}
+ .media-preview-actions .btn{min-height:42px}
+}
+
+
+/* eShareX 2.5.8: compact file action and scroll-to-latest control */
+.filecard{
+ display:flex;align-items:flex-start;gap:10px;position:relative;
+ padding:10px 12px;min-height:0;overflow:visible;
+}
+.filecard-icon{flex:0 0 25px;margin-top:1px}
+.filecard-name{
+ flex:1 1 auto;min-width:0;overflow-wrap:anywhere;word-break:break-word;
+ line-height:1.32;padding:0;margin:0;
+}
+.filecard-download-text{
+ flex:0 0 auto;color:var(--accent);font-size:12px;font-weight:700;
+ line-height:1.32;white-space:nowrap;margin:0 0 0 8px;padding:0;
+}
+.filecard-download-icon{display:none!important}
+.chat-panel{position:relative}
+.scroll-latest{
+ position:absolute;right:18px;bottom:82px;z-index:30;
+ width:38px;height:38px;border-radius:50%;border:1px solid #b8f36b66;
+ background:#172019;color:var(--accent);font-size:22px;font-weight:800;
+ display:flex;align-items:center;justify-content:center;
+ box-shadow:0 5px 18px #0009;opacity:0;visibility:hidden;
+ transform:translateY(7px);transition:opacity .18s,transform .18s,visibility .18s;
+ cursor:pointer;touch-action:manipulation;
+}
+.scroll-latest.visible{opacity:1;visibility:visible;transform:translateY(0)}
+.scroll-latest:active{transform:scale(.94)}
+@media(max-width:600px){.scroll-latest{right:13px;bottom:76px;width:36px;height:36px}}
+
+/* 2.5.9 global chat, file-card and media-preview corrections */
+.filecard{display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:2px!important;width:100%;min-width:0;padding:10px 12px!important;}
+.filecard .filecard-icon{display:none!important}
+.filecard .filecard-name{display:block;flex:0 1 auto;width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.32;margin:0;padding:0}
+.filecard .filecard-download-text{display:block;align-self:flex-end;flex:0 0 auto;margin:0;padding:0;line-height:1.25;white-space:nowrap;color:var(--accent);font-size:12px;font-weight:800}
+.bubble.media-bubble.image-message{display:block;width:fit-content;max-width:min(88vw,620px);min-width:0;padding:8px;}
+.bubble.media-bubble.image-message>img{display:block;width:auto;max-width:100%;max-height:330px;height:auto;margin:0 auto;border-radius:10px;object-fit:contain}
+.bubble.media-bubble.image-message .media-caption{display:block;width:100%;max-width:100%;margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;line-height:1.4}
+.preview-modal{display:flex;flex-direction:column;gap:9px;width:min(1000px,96vw);max-width:96vw;height:auto!important;max-height:92dvh;overflow:auto;padding:12px;background:#10151e}
+.media-preview-stage{display:flex;flex:0 1 auto!important;align-items:center;justify-content:center;width:fit-content;max-width:100%;height:auto;max-height:68dvh;min-height:0;overflow:auto;margin:0 auto;padding:4px;background:#090d13;border:1px solid var(--line);border-radius:13px}
+.media-preview-element{display:block;width:auto;height:auto;max-width:100%;max-height:66dvh;margin:0 auto;object-fit:contain;border-radius:9px}
+.media-preview-stage img.media-preview-element,.media-preview-stage video.media-preview-element{max-width:100%;max-height:66dvh}
+@media(max-width:600px){
+ .preview-modal{width:100%;max-width:100%;height:auto!important;max-height:calc(100dvh - 24px);padding:10px;gap:8px}
+ .media-preview-stage{max-height:66dvh;padding:3px}
+ .media-preview-element,.media-preview-stage img.media-preview-element,.media-preview-stage video.media-preview-element{max-height:64dvh}
+}
+
 </style>
 </head>
 <body>
@@ -350,10 +471,10 @@ function renderMessage(m,container,mine){
  if(m.replyTo){const q=document.createElement('button');q.type='button';q.className='quoted-message';q.textContent='↳ '+(m.replyTo.text||m.replyTo.filename||'Attachment');q.title='Jump to original message';q.addEventListener('click',()=>jumpToOriginal(m.replyTo.messageId));b.appendChild(q)}
  if(m.type==='file'){
   b.classList.add('media-bubble');
-  if((m.mime||'').startsWith('image/')){const im=document.createElement('img');im.src=m.url;im.alt=m.filename||'Shared image';im.loading='lazy';im.onclick=()=>openMedia('img',m.url,m.filename);b.appendChild(im)}
+  if((m.mime||'').startsWith('image/')){b.classList.add('image-message');const im=document.createElement('img');im.src=m.url;im.alt=m.filename||'Shared image';im.loading='lazy';im.onclick=()=>openMedia('img',m.url,m.filename);const sizeBubbleToImage=()=>{if(im.naturalWidth&&im.clientWidth){b.style.width=(im.clientWidth+18)+'px'}};im.addEventListener('load',sizeBubbleToImage);b.appendChild(im);if(im.complete)requestAnimationFrame(sizeBubbleToImage)}
   else if((m.mime||'').startsWith('video/')){const videoWrap=document.createElement('div');videoWrap.className='video-message-wrap';const v=document.createElement('video');v.src=m.url;v.controls=true;v.preload='metadata';v.addEventListener('dblclick',()=>openMedia('video',m.url,m.filename));const previewBtn=document.createElement('button');previewBtn.type='button';previewBtn.className='media-preview-btn';previewBtn.textContent='Open preview';previewBtn.onclick=()=>openMedia('video',m.url,m.filename);videoWrap.append(v,previewBtn);b.appendChild(videoWrap)}
   else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.download=m.filename||'download';link.setAttribute('aria-label','Download '+(m.filename||'file'));const icon=document.createElement('span');icon.className='filecard-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';const action=document.createElement('span');action.className='filecard-download-text';action.textContent='Download';link.append(icon,meta,action);b.appendChild(link)}
-  if(m.caption){const c=document.createElement('div');c.textContent=m.caption;b.appendChild(c)}
+  if(m.caption){const c=document.createElement('div');c.className='media-caption';c.textContent=m.caption;b.appendChild(c)}
  }else{const t=document.createElement('div');t.className='message-text';t.textContent=m.text||'';b.appendChild(t)}
  const contentLine=document.createElement('div');contentLine.className='msg-content-line';
  const reply=document.createElement('button');reply.type='button';reply.className='msg-reply-side';reply.title='Reply';reply.setAttribute('aria-label','Reply to this message');reply.innerHTML='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9h-9a7 7 0 0 0-7 7v2"/></svg>';reply.onclick=(e)=>{e.preventDefault();e.stopPropagation();setReplyTarget(m)};
@@ -436,12 +557,40 @@ $('generalInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey
 $('dmInput').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px';if(currentPeer)saveDraft(draftKey(currentPeer.id),e.target)});
 document.addEventListener('click',e=>{if(!e.target.closest('.top-actions')&&!e.target.closest('.menu'))$('moreMenu').classList.remove('show')});
 
-['generalInput','dmInput'].forEach(id=>{const input=document.getElementById(id);if(!input)return;input.addEventListener('focus',()=>{const box=document.getElementById(id==='dmInput'?'dmMessages':'generalMessages');if(box){box.dataset.userReading='0';requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight})}})});
+/* Preserve the reader's position when the mobile keyboard changes the viewport. */
+const chatFocusState={};
+function captureChatFocus(input){
+ const box=document.getElementById(input.id==='dmInput'?'dmMessages':'generalMessages');
+ if(!box)return;
+ const gap=box.scrollHeight-box.clientHeight-box.scrollTop;
+ const rows=[...box.querySelectorAll('.msgrow')];
+ const anchor=rows.find(row=>row.getBoundingClientRect().bottom>box.getBoundingClientRect().top+1)||null;
+ chatFocusState[box.id]={wasAtBottom:gap<64,anchorId:anchor?.dataset.messageId||'',anchorTop:anchor?.getBoundingClientRect().top??0};
+ if(gap<64)box.dataset.userReading='0';
+}
+function restoreChatFocusPosition(){
+ const active=document.activeElement;
+ if(!active||!['generalInput','dmInput'].includes(active.id))return;
+ const box=document.getElementById(active.id==='dmInput'?'dmMessages':'generalMessages');
+ const state=box&&chatFocusState[box.id];
+ if(!box||!state)return;
+ requestAnimationFrame(()=>{
+  if(state.wasAtBottom){box.scrollTop=box.scrollHeight;box.dataset.userReading='0';return;}
+  if(window.__esharexReplyAnchorId)return; // Reply-anchor handler below owns this case.
+  if(state.anchorId){
+   const row=[...box.querySelectorAll('.msgrow')].find(el=>el.dataset.messageId===state.anchorId);
+   if(row){const delta=row.getBoundingClientRect().top-state.anchorTop;if(Math.abs(delta)>1)box.scrollTop+=delta;}
+  }
+  box.dataset.userReading='1';
+ });
+}
+['generalInput','dmInput'].forEach(id=>{const input=document.getElementById(id);if(input){input.addEventListener('focus',()=>captureChatFocus(input));input.addEventListener('blur',()=>{delete chatFocusState[id==='dmInput'?'dmMessages':'generalMessages']})}});
 function updateAppViewportHeight(){
  const vv=window.visualViewport;const h=vv?vv.height:window.innerHeight;const top=vv?vv.offsetTop:0;
  document.documentElement.style.setProperty('--app-height',Math.max(1,Math.round(h))+'px');
  document.documentElement.style.setProperty('--app-viewport-top',Math.round(top)+'px');
  document.body.classList.toggle('keyboard-open',!!vv&&vv.height<window.innerHeight*0.78);
+ restoreChatFocusPosition();
 }
 updateAppViewportHeight();
 window.addEventListener('resize',updateAppViewportHeight,{passive:true});
@@ -658,108 +807,3 @@ body.keyboard-open .footer{display:none!important}
 
 </body>
 </html>
-
-<style>
-
-/* 2.5.6 desktop alignment, media sizing, downloads and clipboard fallback */
-@media(min-width:851px){
- .topbar{padding-left:clamp(20px,2.5vw,42px);padding-right:clamp(20px,2.5vw,42px)}
- .layout{width:min(1600px,100%);padding-left:clamp(20px,2.5vw,42px);padding-right:clamp(20px,2.5vw,42px)}
- .chat-shell{grid-template-columns:minmax(0,1fr) 270px;gap:18px}
- .chat-context,.chat-shell,.friends-tools,.friends-grid,.nearby-inline{width:100%;}
- .chat-context{margin-left:0;margin-right:0}
- .chat-panel{min-width:0}
- .messages{padding:24px clamp(20px,2vw,34px)}
- .bubble.media-bubble{max-width:min(58vw,520px)}
- .bubble.media-bubble img,.bubble.media-bubble video{max-width:min(48vw,440px);max-height:420px}
- .video-message-wrap{position:relative}
- .video-message-wrap video{width:100%;height:auto}
-}
-.filecard-wrap{display:flex;align-items:center;gap:7px;max-width:100%;min-width:0}
-.filecard-wrap .filecard{flex:1;min-width:0}
-.file-download-btn{flex:0 0 34px;width:34px;height:34px;border:1px solid var(--line);border-radius:9px;background:#17202b;color:var(--accent);font-size:19px;font-weight:900}
-.msgrow.mine .file-download-btn{background:#26351b;border-color:#40572b;color:#c8ff82}
-.video-message-wrap{position:relative;max-width:100%}
-.video-message-wrap video{max-width:100%;max-height:330px}
-.media-preview-btn{display:block;margin-top:6px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#202936;color:var(--text);font-size:11px}
-.media-modal{z-index:1500}
-.preview-modal{width:min(1000px,96vw);max-width:96vw;max-height:92vh;overflow:auto;padding:14px;background:#10151e}
-.media-preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-.media-preview-head strong{min-width:0;overflow-wrap:anywhere;font-size:13px}
-.media-preview-actions{display:flex;gap:8px;flex:0 0 auto}
-.media-preview-actions .btn{padding:9px 13px;font-size:12px}
-.media-preview-element{display:block;max-width:100%;max-height:78vh;width:auto;height:auto;margin:0 auto;object-fit:contain;border-radius:10px}
-@media(max-width:600px){
- .media-preview-head{align-items:flex-start;flex-direction:column}
- .media-preview-actions{width:100%}
- .media-preview-actions .btn{flex:1}
- .preview-modal{width:100%;max-width:100%;padding:10px}
- .media-preview-element{max-height:70vh}
-}
-
-</style>
-
-<style>
-/* eShareX 2.5.7: attachment, preview, friends and keyboard refinements */
-.friend-card{display:flex;align-items:center;gap:12px;padding:17px 16px;min-width:0}
-.friend-card .personinfo{flex:1;min-width:0}
-.friend-card .friend-message-btn{flex:0 0 auto;min-width:96px}
-.friend-card .friend-unread,.friend-card .friend-unread-placeholder{position:static;flex:0 0 34px;width:34px;height:34px;margin-left:2px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
-.friend-card .friend-unread{background:var(--accent);color:#10150b;font-size:12px;font-weight:900}
-.friend-card .friend-unread-placeholder{color:var(--muted);background:#202936;border:1px solid var(--line)}
-.friend-card .friend-unread-placeholder[hidden]{display:none!important}
-.filecard{display:flex;align-items:center;gap:11px;width:100%;min-width:0;padding:11px 12px;border-radius:12px;background:#0b1119;color:#f3f6fb!important;text-decoration:none;border:1px solid #ffffff20;overflow:hidden}
-.filecard-icon{display:flex;flex:0 0 25px;align-items:center;justify-content:center;color:var(--accent)}
-.filecard-name{flex:1;min-width:0;overflow-wrap:anywhere;word-break:break-word;font-size:13px;line-height:1.35}
-.filecard-download-icon{display:flex;flex:0 0 44px;width:44px;min-height:44px;align-items:center;justify-content:center;margin-left:5px;border-left:1px solid #ffffff20;color:var(--accent)}
-.filecard:hover{border-color:#78994d;background:#101923}
-.msgrow.mine .filecard{background:#0b1119;color:#f3f6fb!important;border-color:#ffffff20}
-.preview-modal{display:flex;flex-direction:column;gap:12px;width:min(1000px,96vw);max-width:96vw;height:min(92dvh,900px);max-height:92dvh;overflow:hidden;padding:14px;background:#10151e}
-.media-preview-filename{display:block;flex:0 0 auto;min-width:0;max-height:3.2em;overflow:auto;overflow-wrap:anywhere;font-size:14px;line-height:1.5}
-.media-preview-stage{display:flex;flex:1 1 auto;min-height:0;align-items:center;justify-content:center;overflow:auto;background:#090d13;border:1px solid var(--line);border-radius:13px;padding:8px}
-.media-preview-element{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:9px;margin:auto}
-.media-preview-stage img.media-preview-element{max-height:100%;max-width:100%}
-.media-preview-stage video.media-preview-element{max-height:100%;max-width:100%}
-.media-preview-actions{display:flex;flex:0 0 auto;gap:9px;width:100%}
-.media-preview-actions .btn{flex:1;min-height:44px;padding:10px 14px}
-@media(max-width:600px){
- .friend-card{padding:14px 12px;gap:9px}
- .friend-card .friend-message-btn{min-width:82px;padding:9px 10px;font-size:11px}
- .friend-card .friend-unread,.friend-card .friend-unread-placeholder{flex-basis:30px;width:30px;height:30px}
- .preview-modal{width:100%;max-width:100%;height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);padding:10px;gap:9px}
- .media-preview-filename{font-size:13px}
- .media-preview-stage{padding:5px}
- .media-preview-actions .btn{min-height:42px}
-}
-</style>
-
-<style>
-/* eShareX 2.5.8: compact file action and scroll-to-latest control */
-.filecard{
- display:flex;align-items:flex-start;gap:10px;position:relative;
- padding:10px 12px;min-height:0;overflow:visible;
-}
-.filecard-icon{flex:0 0 25px;margin-top:1px}
-.filecard-name{
- flex:1 1 auto;min-width:0;overflow-wrap:anywhere;word-break:break-word;
- line-height:1.32;padding:0;margin:0;
-}
-.filecard-download-text{
- flex:0 0 auto;color:var(--accent);font-size:12px;font-weight:700;
- line-height:1.32;white-space:nowrap;margin:0 0 0 8px;padding:0;
-}
-.filecard-download-icon{display:none!important}
-.chat-panel{position:relative}
-.scroll-latest{
- position:absolute;right:18px;bottom:82px;z-index:30;
- width:38px;height:38px;border-radius:50%;border:1px solid #b8f36b66;
- background:#172019;color:var(--accent);font-size:22px;font-weight:800;
- display:flex;align-items:center;justify-content:center;
- box-shadow:0 5px 18px #0009;opacity:0;visibility:hidden;
- transform:translateY(7px);transition:opacity .18s,transform .18s,visibility .18s;
- cursor:pointer;touch-action:manipulation;
-}
-.scroll-latest.visible{opacity:1;visibility:visible;transform:translateY(0)}
-.scroll-latest:active{transform:scale(.94)}
-@media(max-width:600px){.scroll-latest{right:13px;bottom:76px;width:36px;height:36px}}
-</style>

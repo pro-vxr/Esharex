@@ -46,7 +46,7 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.5.6"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.5.9"));
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
                 return json(new JSONObject().put("ip", ip).put("port", 8080).put("available", !"127.0.0.1".equals(ip)).put("address", "http://" + ip + ":8080"));
@@ -359,6 +359,9 @@ public class ShareHttpServer extends NanoHTTPD {
         Map<String,String> files = new HashMap<>(); session.parseBody(files);
         Map<String,List<String>> params=session.getParameters(); String temp=files.get("file");
         if(temp==null) return jsonError(Response.Status.BAD_REQUEST,"No file received");
+        File tempFile = new File(temp);
+        if (!tempFile.isFile()) return jsonError(Response.Status.BAD_REQUEST,"Uploaded file is unavailable");
+        if (tempFile.length() > MAX_UPLOAD_BYTES) return jsonError(Response.Status.BAD_REQUEST,"File exceeds the 100 MB limit");
         String userId = safeText(first(params,"userId"),80);
         JSONObject registeredUser = users.get(userId);
         if (userId.isEmpty() || registeredUser == null) return jsonError(Response.Status.UNAUTHORIZED,"Register before uploading files");
@@ -426,11 +429,18 @@ public class ShareHttpServer extends NanoHTTPD {
         if (!f.isFile()) {
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found");
         }
-        Response r = newFixedLengthResponse(Response.Status.OK, mimeFor(name), new FileInputStream(f), f.length());
+        String mime = mimeFor(name);
+        // Only raster images and MP4 videos are rendered inline. Other uploaded
+        // content is forced to download to prevent same-origin HTML/SVG script execution.
+        boolean safeInline = mime.startsWith("image/") && !"image/svg+xml".equals(mime) || "video/mp4".equals(mime);
+        if (!safeInline) mime = "application/octet-stream";
+        Response r = newFixedLengthResponse(Response.Status.OK, mime, new FileInputStream(f), f.length());
         String original = safeText(session.getParms().get("filename"), 180);
         if (original.isEmpty()) original = name;
         original = original.replaceAll("[\\\"\\r\\n]", "_");
-        r.addHeader("Content-Disposition", "inline; filename=\"" + original + "\"; filename*=UTF-8''" + java.net.URLEncoder.encode(original, "UTF-8").replace("+", "%20"));
+        String disposition = safeInline ? "inline" : "attachment";
+        r.addHeader("Content-Disposition", disposition + "; filename=\"" + original + "\"; filename*=UTF-8''" + java.net.URLEncoder.encode(original, "UTF-8").replace("+", "%20"));
+        r.addHeader("X-Content-Type-Options", "nosniff");
         addCors(r);
         return r;
     }
