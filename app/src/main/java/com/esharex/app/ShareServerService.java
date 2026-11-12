@@ -191,6 +191,7 @@ public class ShareServerService extends Service {
         Intent open = new Intent(this, MainActivity.class);
         open.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         if (!TextUtils.isEmpty(peer)) open.putExtra("esharex_open_peer", peer);
+        open.putExtra("esharex_open_kind", kind == null ? "direct" : kind);
         open.putExtra("esharex_open_title", sender);
         int requestCode = (eventId + peer).hashCode();
         PendingIntent pending = PendingIntent.getActivity(this, requestCode, open,

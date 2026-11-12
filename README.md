@@ -1,6 +1,18 @@
-# eShareX 2.5.4
+# eShareX 2.5.6
 
 Local-network chat and file sharing for Android and web.
+
+## 2.5.6 changes
+- Wider aligned desktop layout.
+- Larger desktop media previews.
+- Download controls in image/video previews and document cards.
+- Clipboard API fallback and Android native clipboard bridge support.
+
+## 2.5.5 changes
+- Fixed notification event cursor handling so messages arriving during polling are not skipped.
+- Fixed Android notification taps for General Chat.
+- Read receipts now acknowledge the newest message actually loaded instead of the current wall-clock time.
+- Corrected friend unread badge positioning and clarified browser notification HTTPS requirements.
 
 ## 2.5.4 changes
 
@@ -20,3 +32,7 @@ Use JDK 17 and Android SDK 34. Run `bash gradlew assembleDebug` (or `./gradlew a
 ## Notification notes
 
 Android message alerts use a foreground service to poll the connected LAN host while the app's notification monitor is running. Android notification permission must be granted, and battery-management settings may still affect long-running background work on some devices. Browser notifications require browser permission and a running page; true browser push after the tab/browser is closed requires HTTPS and a push subscription/backend, which this LAN-only release does not configure.
+
+## Security note
+
+This release is intended for trusted local networks only. The current LAN API identifies participants by device ID but does not yet provide cryptographic peer authentication or end-to-end encryption. Do not expose port 8080 to the public internet or use it for sensitive conversations on an untrusted network.

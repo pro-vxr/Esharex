@@ -12,6 +12,7 @@ import java.net.Inet4Address;
 import java.net.NetworkInterface;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ShareHttpServer extends NanoHTTPD {
     private final Context context;
@@ -19,6 +20,7 @@ public class ShareHttpServer extends NanoHTTPD {
     private final List<JSONObject> messages = new CopyOnWriteArrayList<>();
     private final List<JSONObject> directMessages = new CopyOnWriteArrayList<>();
     private final Map<String, JSONObject> users = new java.util.concurrent.ConcurrentHashMap<>();
+    private final AtomicLong eventSequence = new AtomicLong(0L);
     private final File messagesFile, dmFile, usersFile;
 
     public ShareHttpServer(Context context, File dataDir) {
@@ -33,6 +35,10 @@ public class ShareHttpServer extends NanoHTTPD {
         loadArray(messagesFile, messages);
         loadArray(dmFile, directMessages);
         loadUsers();
+        long maxSequence = 0L;
+        for (JSONObject message : messages) maxSequence = Math.max(maxSequence, message.optLong("eventSeq", 0L));
+        for (JSONObject message : directMessages) maxSequence = Math.max(maxSequence, message.optLong("eventSeq", 0L));
+        eventSequence.set(maxSequence);
     }
 
     @Override public Response serve(IHTTPSession session) {
@@ -40,7 +46,7 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.5.4"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.5.6"));
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
                 return json(new JSONObject().put("ip", ip).put("port", 8080).put("available", !"127.0.0.1".equals(ip)).put("address", "http://" + ip + ":8080"));
@@ -101,7 +107,11 @@ public class ShareHttpServer extends NanoHTTPD {
         user.put("name", name).put("lastSeen", now);
         // A returning user starts a fresh notification window: offline messages remain unread,
         // but are not replayed as a burst of push-style alerts.
-        if (previousSeen == 0 || now - previousSeen > 45000L) user.put("notificationCursor", now);
+        if (previousSeen == 0 || now - previousSeen > 45000L || !user.has("notificationCursorSeq")) {
+            // Suppress historical notifications on first registration/reconnection.
+            // Unread counters remain independent and are not cleared.
+            user.put("notificationCursorSeq", currentEventSequence());
+        }
         users.put(id, user); saveUsers();
         return json(new JSONObject().put("success", true).put("user", user));
     }
@@ -176,47 +186,55 @@ public class ShareHttpServer extends NanoHTTPD {
         String peer = safeText(in.optString("peer", ""), 80);
         JSONObject user = users.get(me);
         if (user == null) return jsonError(Response.Status.UNAUTHORIZED, "Register before marking messages read");
-        long now = System.currentTimeMillis();
-        if (peer.isEmpty()) user.put("generalReadAt", now);
-        else {
+        // The client acknowledges only the newest message it actually loaded.
+        // Using wall-clock time here could mark a message read before it was rendered.
+        long through = in.optLong("through", 0L);
+        if (peer.isEmpty()) {
+            long previous = user.optLong("generalReadAt", 0L);
+            user.put("generalReadAt", Math.max(previous, through));
+        } else {
             JSONObject readAt = user.optJSONObject("dmReadAt");
             if (readAt == null) readAt = new JSONObject();
-            readAt.put(peer, now);
+            readAt.put(peer, Math.max(readAt.optLong(peer, 0L), through));
             user.put("dmReadAt", readAt);
         }
         saveUsers();
-        return json(new JSONObject().put("success", true).put("readAt", now));
+        return json(new JSONObject().put("success", true).put("readAt", through));
     }
 
     private Response notificationEvents(IHTTPSession session) throws Exception {
         String me = safeText(session.getParms().get("id"), 80);
         JSONObject user = users.get(me);
         if (user == null) return jsonError(Response.Status.UNAUTHORIZED, "Register before checking notifications");
-        long now = System.currentTimeMillis();
-        long cursor = user.optLong("notificationCursor", now);
+        long cursor = user.optLong("notificationCursorSeq", 0L);
+        // Take a stable upper bound before scanning. Messages arriving after this point
+        // receive a larger sequence and will be returned by the next poll.
+        long upperBound = currentEventSequence();
         JSONArray events = new JSONArray();
-        // This endpoint is polled only by an active client. Registration advances the cursor
-        // after a long absence, preserving unread counts without replaying offline alerts.
         for (JSONObject msg : messages) {
-                long ts = msg.optLong("timestamp", 0);
-                if (ts > cursor && !me.equals(msg.optString("userId"))) {
-                    events.put(new JSONObject().put("kind", "general").put("id", msg.optString("id"))
-                        .put("sender", msg.optString("username", "General chat"))
-                        .put("text", msg.optString("text", msg.optString("caption", "New attachment")))
-                        .put("timestamp", ts));
-                }
+            long seq = msg.optLong("eventSeq", 0L);
+            if (seq > cursor && seq <= upperBound && !me.equals(msg.optString("userId"))) {
+                events.put(new JSONObject().put("kind", "general").put("id", msg.optString("id"))
+                    .put("sender", msg.optString("username", "General chat"))
+                    .put("text", msg.optString("text", msg.optString("caption", "New attachment")))
+                    .put("timestamp", msg.optLong("timestamp", 0L)).put("eventSeq", seq));
             }
+        }
         for (JSONObject msg : directMessages) {
-            long ts = msg.optLong("timestamp", 0);
-            if (ts > cursor && me.equals(msg.optString("to"))) {
+            long seq = msg.optLong("eventSeq", 0L);
+            if (seq > cursor && seq <= upperBound && me.equals(msg.optString("to"))) {
                 events.put(new JSONObject().put("kind", "direct").put("id", msg.optString("id"))
                     .put("peer", msg.optString("from")).put("sender", msg.optString("fromName", "Private message"))
                     .put("text", msg.optString("text", msg.optString("caption", msg.optString("filename", "New attachment"))))
-                    .put("timestamp", ts));
+                    .put("timestamp", msg.optLong("timestamp", 0L)).put("eventSeq", seq));
             }
         }
-        user.put("notificationCursor", now);
-        saveUsers();
+        // Advance only to the captured upper bound, never to wall-clock time. This avoids
+        // dropping a message that arrives while this endpoint is building its response.
+        if (upperBound > cursor) {
+            user.put("notificationCursorSeq", upperBound);
+            saveUsers();
+        }
         return json(events);
     }
 
@@ -262,7 +280,10 @@ public class ShareHttpServer extends NanoHTTPD {
         JSONObject msg = new JSONObject().put("id",UUID.randomUUID().toString()).put("from",from).put("to",to)
             .put("fromName",sender.optString("name","User")).put("text",text).put("timestamp",System.currentTimeMillis());
         if (in.opt("replyTo") instanceof JSONObject) msg.put("replyTo", in.opt("replyTo"));
-        directMessages.add(msg); trim(directMessages,1000); saveArray(dmFile,directMessages);
+        synchronized (eventSequence) {
+            stampEventSequence(msg);
+            directMessages.add(msg); trim(directMessages,1000); saveArray(dmFile,directMessages);
+        }
         return json(new JSONObject().put("success",true).put("message",msg));
     }
     private Response listDirectMessages(IHTTPSession session) throws Exception {
@@ -360,11 +381,27 @@ public class ShareHttpServer extends NanoHTTPD {
         if(to!=null && from!=null) {
             JSONObject sender=users.get(from), recipient=users.get(to);
             msg.put("from",from).put("to",to).put("fromName",sender.optString("name","User"));
-            directMessages.add(msg);trim(directMessages,1000);saveArray(dmFile,directMessages);
+            synchronized (eventSequence) {
+                stampEventSequence(msg);
+                directMessages.add(msg);trim(directMessages,1000);saveArray(dmFile,directMessages);
+            }
         } else addMessage(msg);
         return json(new JSONObject().put("success",true).put("message",msg));
     }
-    private void addMessage(JSONObject msg){messages.add(msg);trim(messages,500);saveArray(messagesFile,messages);}
+    private void addMessage(JSONObject msg){
+        synchronized (eventSequence) {
+            stampEventSequence(msg);
+            messages.add(msg);trim(messages,500);saveArray(messagesFile,messages);
+        }
+    }
+    private void stampEventSequence(JSONObject msg) {
+        if (msg == null || msg.has("eventSeq")) return;
+        try { msg.put("eventSeq", eventSequence.incrementAndGet()); }
+        catch (Exception ignored) {}
+    }
+    private long currentEventSequence() {
+        synchronized (eventSequence) { return eventSequence.get(); }
+    }
     private void trim(List<JSONObject> list,int max){while(list.size()>max)list.remove(0);}
     private JSONArray arrayCopy(List<JSONObject> list){JSONArray a=new JSONArray();for(JSONObject o:list)a.put(o);return a;}
     private String first(Map<String,List<String>> p,String k){List<String> v=p.get(k);return v==null||v.isEmpty()?null:v.get(0);}

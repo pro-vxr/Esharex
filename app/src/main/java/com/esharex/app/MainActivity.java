@@ -1,6 +1,7 @@
 package com.esharex.app;
 
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.net.Uri;
@@ -10,6 +11,7 @@ import android.content.Context;
 import androidx.core.content.ContextCompat;
 import java.util.UUID;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.webkit.ValueCallback;
@@ -40,6 +42,10 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private boolean pageRequested = false;
+    private String pendingNotificationPeer = "";
+    private String pendingNotificationKind = "";
+    private String pendingNotificationTitle = "";
+    private boolean notificationNavigationRetryScheduled = false;
     private NsdManager nsdManager;
     private NsdManager.DiscoveryListener discoveryListener;
     private final Map<String, NsdServiceInfo> nearby = new HashMap<>();
@@ -90,6 +96,24 @@ public class MainActivity extends Activity {
             }
         });
         webView.addJavascriptInterface(new NotificationBridge(), "AndroidBridge");
+        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
+            try {
+                String filename = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimeType);
+                filename = filename == null ? "esharex-download" : filename.replace("/", "_").replace("\\", "_").replaceAll("\\p{Cntrl}", "_");
+                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                request.setTitle(filename);
+                request.setDescription("Downloading from eShareX");
+                request.setMimeType(mimeType == null ? "application/octet-stream" : mimeType);
+                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+                request.setAllowedOverMetered(true);
+                request.setAllowedOverRoaming(false);
+                ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(request);
+                Toast.makeText(MainActivity.this, "Download started", Toast.LENGTH_SHORT).show();
+            } catch (Exception error) {
+                Toast.makeText(MainActivity.this, "Could not start download", Toast.LENGTH_SHORT).show();
+            }
+        });
         nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -125,15 +149,43 @@ public class MainActivity extends Activity {
     }
 
     private void deliverPendingNotificationTarget(Intent intent) {
-        if (intent == null || webView == null) return;
-        String peer = intent.getStringExtra("esharex_open_peer");
-        if (peer == null || peer.isEmpty()) return;
-        String title = intent.getStringExtra("esharex_open_title");
-        String js = "window.openNotificationConversation && window.openNotificationConversation(" +
-            org.json.JSONObject.quote(peer) + "," + org.json.JSONObject.quote(title == null ? "" : title) + ")";
-        webView.post(() -> webView.evaluateJavascript(js, null));
-        intent.removeExtra("esharex_open_peer");
-        intent.removeExtra("esharex_open_title");
+        if (intent != null) {
+            String peer = intent.getStringExtra("esharex_open_peer");
+            String kind = intent.getStringExtra("esharex_open_kind");
+            if ((peer != null && !peer.isEmpty()) || "general".equals(kind)) {
+                pendingNotificationPeer = peer == null ? "" : peer;
+                pendingNotificationKind = kind == null ? "direct" : kind;
+                pendingNotificationTitle = intent.getStringExtra("esharex_open_title");
+                if (pendingNotificationTitle == null) pendingNotificationTitle = "";
+                intent.removeExtra("esharex_open_peer");
+                intent.removeExtra("esharex_open_kind");
+                intent.removeExtra("esharex_open_title");
+            }
+        }
+        deliverPendingNotificationTarget();
+    }
+
+    private void deliverPendingNotificationTarget() {
+        if (webView == null || pendingNotificationKind.isEmpty()) return;
+        final String peer = pendingNotificationPeer;
+        final String title = pendingNotificationTitle;
+        String js = "(function(){if(typeof window.openNotificationConversation !== 'function')return false;" +
+            "window.openNotificationConversation(" + org.json.JSONObject.quote(peer) + "," +
+            org.json.JSONObject.quote(title) + ");return true;})()";
+        webView.post(() -> webView.evaluateJavascript(js, value -> {
+            if ("true".equals(value)) {
+                pendingNotificationPeer = "";
+                pendingNotificationKind = "";
+                pendingNotificationTitle = "";
+                notificationNavigationRetryScheduled = false;
+            } else if (!notificationNavigationRetryScheduled && !isFinishing()) {
+                notificationNavigationRetryScheduled = true;
+                handler.postDelayed(() -> {
+                    notificationNavigationRetryScheduled = false;
+                    deliverPendingNotificationTarget();
+                }, 300L);
+            }
+        }));
     }
 
     @Override protected void onNewIntent(Intent intent) {
