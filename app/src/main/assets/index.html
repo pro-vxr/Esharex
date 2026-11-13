@@ -299,6 +299,16 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
  .media-preview-element,.media-preview-stage img.media-preview-element,.media-preview-stage video.media-preview-element{max-height:64dvh}
 }
 
+
+/* 2.6.2: keep the floating latest button clear of reply/composer controls */
+.filecard{display:grid!important;grid-template-columns:24px minmax(0,1fr)!important;grid-template-rows:auto auto!important;column-gap:8px!important;row-gap:2px!important;align-items:start!important;}
+.filecard .filecard-icon{display:flex!important;grid-column:1!important;grid-row:1!important;flex:0 0 24px!important;width:24px!important;margin:1px 0 0!important;}
+.filecard .filecard-name{grid-column:2!important;grid-row:1!important;width:100%!important;min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;}
+.filecard .filecard-download-text{grid-column:2!important;grid-row:2!important;justify-self:end!important;align-self:start!important;margin:0!important;}
+@media(max-width:600px){.bubble.image-message{max-width:calc(min(62vw,210px) + 16px)!important}.bubble.image-message>img{max-width:210px!important;max-height:170px!important}}
+@media(min-width:601px){.bubble.image-message{max-width:calc(min(46vw,360px) + 16px)!important}.bubble.image-message>img{max-width:360px!important;max-height:260px!important}}
+body.composer-focused .scroll-latest{opacity:0!important;visibility:hidden!important;pointer-events:none!important;transform:translateY(6px)!important}
+.scroll-latest{transition:opacity .16s ease,visibility .16s ease,transform .16s ease}
 </style>
 <style id="esharex-260-global-refinements">
 /* 2.6.0: consistent compact UI across Android WebView, mobile web and desktop web */
@@ -343,6 +353,32 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
 }
 @media(min-width:601px) and (max-width:850px){.friends-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(min-width:851px){.friends-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}.bubble.image-message{max-width:min(68%,420px)}}
+</style>
+<style id="esharex-262-final-overrides">
+/* 2.6.2: hard caps and intrinsic-width image/caption alignment */
+.menu{z-index:1250;max-height:min(75dvh,560px);overflow:auto}
+#infoModal{z-index:1400}
+.menu button{min-height:42px}
+.bubble.image-message{display:block!important;box-sizing:border-box!important;min-width:0!important;width:max-content;max-width:min(62vw,226px)!important;padding:7px!important;overflow:hidden!important}
+.bubble.image-message>img{display:block!important;max-width:100%!important;max-height:170px!important;width:auto;height:auto;object-fit:contain;margin:0 auto!important}
+.bubble.image-message .media-caption{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important;word-break:break-word!important;line-height:1.38!important;margin:6px 0 0!important}
+.bubble:not(.image-message){font-size:13px!important;line-height:1.38!important;padding:8px 10px!important}
+.message-text{font-size:13px!important;line-height:1.38!important;overflow-wrap:anywhere}
+@media(max-width:600px){
+ .bubble.image-message{max-width:calc(min(62vw,210px) + 16px)!important}
+ .bubble.image-message>img{max-height:170px!important}
+ .bubble:not(.image-message){font-size:12.5px!important;padding:7px 9px!important}
+ .message-text{font-size:12.5px!important}
+}
+@media(min-width:601px){.bubble.image-message{max-width:calc(min(46vw,360px) + 16px)!important}.bubble.image-message>img{max-width:360px!important;max-height:260px!important}}
+
+/* 2.6.2 media card icon and responsive image limits */
+.filecard{display:grid!important;grid-template-columns:24px minmax(0,1fr)!important;grid-template-rows:auto auto!important;column-gap:8px!important;row-gap:2px!important;align-items:start!important}
+.filecard .filecard-icon{display:flex!important;grid-column:1!important;grid-row:1!important;flex:0 0 24px!important;width:24px!important;margin:1px 0 0!important}
+.filecard .filecard-name{grid-column:2!important;grid-row:1!important;width:100%!important;min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important}
+.filecard .filecard-download-text{grid-column:2!important;grid-row:2!important;justify-self:end!important;align-self:start!important;margin:0!important}
+@media(max-width:600px){.bubble.image-message{max-width:calc(min(62vw,210px) + 16px)!important}.bubble.image-message>img{max-width:210px!important;max-height:170px!important}}
+@media(min-width:601px){.bubble.image-message{max-width:calc(min(46vw,360px) + 16px)!important}.bubble.image-message>img{max-width:360px!important;max-height:260px!important}}
 </style>
 </head>
 <body>
@@ -430,7 +466,7 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
 const $=id=>document.getElementById(id);
 function makeDeviceId(){return 'ex-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)}
 const nativeDeviceId=(window.AndroidBridge&&typeof window.AndroidBridge.getDeviceId==='function')?window.AndroidBridge.getDeviceId():'';
-const deviceId=nativeDeviceId||localStorage.getItem('esharex_device_id')||makeDeviceId();
+let deviceId=nativeDeviceId||localStorage.getItem('esharex_device_id')||makeDeviceId();
 localStorage.setItem('esharex_device_id',deviceId);
 let myName=localStorage.getItem('esharex_name')||'';
 let unreadState={general:0,direct:{},total:0},notificationPollBusy=false,readAck={};
@@ -449,7 +485,7 @@ function navigate(e,p){if(e)e.preventDefault();if(!myName&&p!=='/')return toast(
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&myName){registerCurrentUser().then(()=>pingPresence()).then(()=>{refreshUnread();pollIncomingNotifications()}).catch(()=>{})}});
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2300)}
 async function api(url,opts={}){const r=await fetch(url,opts);if(!r.ok)throw new Error((await r.text())||r.statusText);return r.json()}
-async function registerCurrentUser(){if(!myName)throw new Error('No saved display name');return api('/api/register',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({id:deviceId,name:myName})})}
+async function registerCurrentUser(){if(!myName)throw new Error('No saved display name');const result=await api('/api/register',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({id:deviceId,name:myName})});const canonical=result.canonicalId||(result.user&&result.user.id);if(canonical&&canonical!==deviceId){deviceId=canonical;localStorage.setItem('esharex_device_id',canonical)}return result}
 async function pingPresence(){try{return await api('/api/presence',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({id:deviceId,name:myName})})}catch(e){await registerCurrentUser();return api('/api/presence',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({id:deviceId,name:myName})})}}
 async function joinNetwork(){const chosen=$('joinName').value.trim();if(!chosen)return toast('Choose a display name first');myName=chosen;try{await registerCurrentUser();localStorage.setItem('esharex_name',myName);if(isNative){try{const info=await api('/api/server-info');$('ipUnder').textContent=info.address;$('ipUnder').style.display='block'}catch(_){}}go('/chat');startPresence();toast('Welcome to eShareX, '+myName)}catch(e){toast('Could not join. Make sure you are connected to the host network.')}}
 async function startPresence(){if(poller)clearInterval(poller);if(heartbeat)clearInterval(heartbeat);try{await registerCurrentUser();await pingPresence();if(isNative&&window.AndroidBridge?.configureNotificationMonitor)AndroidBridge.configureNotificationMonitor(location.origin,deviceId,myName)}catch(_){heartbeat=setInterval(async()=>{try{await registerCurrentUser();await pingPresence();clearInterval(heartbeat);heartbeat=null;startPresence()}catch(__){}},5000);return}heartbeat=setInterval(()=>pingPresence().catch(()=>{}),15000);poller=setInterval(()=>{if(location.pathname==='/chat'){loadGeneral();loadPeople()}if(location.pathname==='/friends')loadPeople();if(currentPeer&&location.pathname==='/chat')loadDM();refreshUnread();pollIncomingNotifications()},2500);}
@@ -512,8 +548,8 @@ function fitImageMessage(image){
  const bubble=image&&image.closest('.bubble.image-message');
  if(!bubble||!image.naturalWidth||!image.naturalHeight)return;
  const mobile=window.matchMedia('(max-width:600px)').matches;
- const maxWidth=Math.min(mobile?260:420,Math.floor(window.innerWidth*(mobile?0.68:0.52)));
- const maxHeight=mobile?210:300;
+ const maxWidth=Math.min(mobile?210:360,Math.floor(window.innerWidth*(mobile?0.62:0.46)));
+ const maxHeight=mobile?170:260;
  const scale=Math.min(1,maxWidth/image.naturalWidth,maxHeight/image.naturalHeight);
  const width=Math.max(1,Math.round(image.naturalWidth*scale));
  const height=Math.max(1,Math.round(image.naturalHeight*scale));
@@ -544,7 +580,7 @@ function renderMessage(m,container,mine){
    if(im.complete&&im.naturalWidth)fitImageMessage(im);
   }
   else if((m.mime||'').startsWith('video/')){const videoWrap=document.createElement('div');videoWrap.className='video-message-wrap';const v=document.createElement('video');v.src=m.url;v.controls=true;v.preload='metadata';v.addEventListener('dblclick',()=>openMedia('video',m.url,m.filename));const previewBtn=document.createElement('button');previewBtn.type='button';previewBtn.className='media-preview-btn';previewBtn.textContent='Open preview';previewBtn.onclick=()=>openMedia('video',m.url,m.filename);videoWrap.append(v,previewBtn);b.appendChild(videoWrap)}
-  else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.download=m.filename||'download';link.setAttribute('aria-label','Download '+(m.filename||'file'));const icon=document.createElement('span');icon.className='filecard-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';const action=document.createElement('span');action.className='filecard-download-text';action.textContent='Download';link.append(icon,meta,action);b.appendChild(link)}
+  else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.download=m.filename||'download';link.setAttribute('aria-label','Download '+(m.filename||'file'));const icon=document.createElement('span');icon.className='filecard-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML=mediaIconSvg(m.mime,m.filename);const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';const action=document.createElement('span');action.className='filecard-download-text';action.textContent='Download';link.append(icon,meta,action);b.appendChild(link)}
   if(m.caption){const c=document.createElement('div');c.className='media-caption';c.textContent=m.caption;b.appendChild(c)}
  }else{const t=document.createElement('div');t.className='message-text';t.textContent=m.text||'';b.appendChild(t)}
  const contentLine=document.createElement('div');contentLine.className='msg-content-line';
@@ -564,7 +600,14 @@ function renderMessage(m,container,mine){
  let touchX=0,touchY=0,touchStarted=false;row.addEventListener('touchstart',e=>{const t=e.changedTouches[0];if(e.target.closest('button,a,input,textarea')){touchStarted=false;return}touchX=t.clientX;touchY=t.clientY;touchStarted=true},{passive:true,capture:true});row.addEventListener('touchend',e=>{if(!touchStarted)return;touchStarted=false;const t=e.changedTouches[0],dx=t.clientX-touchX,dy=t.clientY-touchY;if(dx>75&&dx>Math.abs(dy)*1.35)setReplyTarget(m)},{passive:true,capture:true});
  container.appendChild(row);
 }
-function fileIcon(mime,name){if((mime||'').includes('pdf')||/\.pdf$/i.test(name||''))return '📄';if(/\.(zip|rar|7z)$/i.test(name||''))return '🗜';if((mime||'').startsWith('audio/'))return '🎵';return '📎'}
+function mediaIconSvg(mime,name){const n=(name||'').toLowerCase(),m=(mime||'').toLowerCase();let path='<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>';
+ if(m.startsWith('audio/')||/\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(n))path='<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>';
+ else if(m.startsWith('video/')||/\.(mp4|mkv|mov|webm|avi)$/i.test(n))path='<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/>';
+ else if(m.startsWith('image/'))path='<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>';
+ else if(m.includes('pdf')||/\.pdf$/i.test(n))path='<path d="M14 2H6a2 2 0 0 0-2 2v16h16V8z"/><path d="M14 2v6h6M7 15h10M7 18h7"/>';
+ else if(/\.(zip|rar|7z|gz|tar)$/i.test(n))path='<path d="M4 4h16v16H4zM9 4v4m6-4v4M9 12h6m-6 4h6"/>';
+ return '<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>';
+}
 function setReplyTarget(m){const dm=!!currentPeer;replyTarget={...m,_conversation:dm?'dm:'+currentPeer.id:'general'};window.__esharexReplyAnchorId=m.id||'';$('generalReplyStrip').hidden=true;$('dmReplyStrip').hidden=true;const strip=$(dm?'dmReplyStrip':'generalReplyStrip');$(dm?'dmReplyName':'generalReplyName').textContent='Replying to '+(m.username||m.fromName||(m.userId===deviceId?'You':'Member'));$(dm?'dmReplyText':'generalReplyText').textContent=messagePreview(m).slice(0,150);strip.hidden=false;const input=$(dm?'dmInput':'generalInput');input.focus()}
 function cancelReply(){replyTarget=null;$('generalReplyStrip').hidden=true;$('dmReplyStrip').hidden=true}
 function editMessage(m){editingMessage=m;$('editText').value=m.text||'';$('editModal').classList.add('show');setTimeout(()=>$('editText').focus(),100)}
@@ -596,7 +639,7 @@ function updateUnreadBadges(){
 async function refreshUnread(){if(!myName)return;try{unreadState=await api('/api/unread?id='+encodeURIComponent(deviceId));updateUnreadBadges()}catch(_){}}
 async function markConversationRead(peerId,latestTs){const key=peerId?'dm:'+peerId:'general';const marker=Math.max(0,Number(latestTs)||0);if(readAck[key]!==undefined&&marker<=readAck[key])return;readAck[key]=marker;try{await api('/api/read',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify(peerId?{id:deviceId,peer:peerId,through:marker}:{id:deviceId,through:marker})});await refreshUnread()}catch(_){if(readAck[key]===marker)delete readAck[key]}}
 async function pollIncomingNotifications(){if(isNative||!myName||notificationPollBusy)return;notificationPollBusy=true;try{const events=await api('/api/notifications?id='+encodeURIComponent(deviceId));for(const event of events){const viewingSameDM=event.kind==='direct'&&currentPeer&&currentPeer.id===event.peer&&location.pathname==='/chat'&&!document.hidden;const viewingGeneral=event.kind==='general'&&!currentPeer&&location.pathname==='/chat'&&!document.hidden;if(viewingSameDM||viewingGeneral)continue;const title='eShareX · '+(event.sender||'New message');const body=String(event.text||'New message').slice(0,180);if(isNative&&window.AndroidBridge?.showNotification)window.AndroidBridge.showNotification(title,body,event.kind==='direct'?event.peer:'');else if('Notification'in window&&Notification.permission==='granted'){const n=new Notification(title,{body,tag:'esharex-'+event.id});n.onclick=()=>{window.focus();if(event.kind==='direct')openDM({id:event.peer,name:event.sender});else window.openNotificationConversation('',event.sender||'General chat');n.close()}}}}catch(_){}finally{notificationPollBusy=false}}
-async function loadPeople(){if(!myName)return;try{let users=await api('/api/users?id='+encodeURIComponent(deviceId));let online=users.filter(u=>u.online);let onlineFriends=users.filter(u=>u.online&&u.id!==deviceId&&!u.self);$('memberCount').textContent=online.length;$('chatOnline').textContent=online.length+' online';$('friendsOnline').textContent=onlineFriends.length+' online';if(currentPeer){const livePeer=users.find(u=>u.id===currentPeer.id);if(livePeer){currentPeer.online=!!livePeer.online;$('chatOnline').textContent=livePeer.online?'Online':'Offline'}}let others=users.filter(u=>u.id!==deviceId&&!u.self);$('onlineList').innerHTML='';$('friendsGrid').innerHTML='';if(!others.length)$('friendsGrid').innerHTML='<div class="panel empty">You are the first one here. Invite someone to join your network.</div>';others.forEach(u=>{let row=document.createElement('div');row.className='person';row.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><span class="dot"></span>';row.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();row.querySelector('strong').textContent=u.name;row.querySelector('small').textContent=u.online?'Online':'Offline';row.querySelector('.dot').classList.toggle('on',u.online);$('onlineList').appendChild(row);let card=document.createElement('div');card.className='panel friend-card';card.dataset.online=u.online?'true':'false';card.dataset.userId=u.id;card.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><button class="btn friend-message-btn" type="button">Message</button><span class="friend-unread-placeholder" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg></span>';card.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();card.querySelector('strong').textContent=u.name;card.querySelector('small').textContent=u.online?'● Online':'○ Offline';card.querySelector('small').style.color=u.online?'var(--accent)':'var(--muted)';card.querySelector('.friend-message-btn').onclick=()=>openDM(u);$('friendsGrid').appendChild(card)});filterFriends();updateUnreadBadges()}catch(_){}}
+async function loadPeople(){if(!myName)return;try{let users=await api('/api/users?id='+encodeURIComponent(deviceId));let online=users.filter(u=>u.online&&u.id!==deviceId&&!u.self);let onlineFriends=online;$('memberCount').textContent=online.length;$('chatOnline').textContent=online.length+' online';$('friendsOnline').textContent=onlineFriends.length+' online';if(currentPeer){const livePeer=users.find(u=>u.id===currentPeer.id);if(livePeer){currentPeer.online=!!livePeer.online;$('chatOnline').textContent=livePeer.online?'Online':'Offline'}}let others=users.filter(u=>u.id!==deviceId&&!u.self);$('onlineList').innerHTML='';$('friendsGrid').innerHTML='';if(!others.length)$('friendsGrid').innerHTML='<div class="panel empty">You are the first one here. Invite someone to join your network.</div>';others.forEach(u=>{let row=document.createElement('div');row.className='person';row.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><span class="dot"></span>';row.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();row.querySelector('strong').textContent=u.name;row.querySelector('small').textContent=u.online?'Online':'Offline';row.querySelector('.dot').classList.toggle('on',u.online);$('onlineList').appendChild(row);let card=document.createElement('div');card.className='panel friend-card';card.dataset.online=u.online?'true':'false';card.dataset.userId=u.id;card.innerHTML='<div class="avatar"></div><div class="personinfo"><strong></strong><small></small></div><button class="btn friend-message-btn" type="button">Message</button><span class="friend-unread-placeholder" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg></span>';card.querySelector('.avatar').textContent=(u.name||'?').slice(0,1).toUpperCase();card.querySelector('strong').textContent=u.name;card.querySelector('small').textContent=u.online?'● Online':'○ Offline';card.querySelector('small').style.color=u.online?'var(--accent)':'var(--muted)';card.querySelector('.friend-message-btn').onclick=()=>openDM(u);$('friendsGrid').appendChild(card)});filterFriends();updateUnreadBadges()}catch(_){}}
 function openDM(u){lastMessageContext=null;$('chatActionsMenu').hidden=true;if(currentPeer)saveDraft(draftKey(currentPeer.id),$('dmInput'));cancelReply();dmRequestSeq++;currentPeer={...u};seenDM.clear();const box=$('dmMessages');box.innerHTML='';box.dataset.initialized='0';box.dataset.userReading='0';box.scrollTop=0;restoreDraft(draftKey(u.id),$('dmInput'));go('/chat');document.querySelector('.chat-shell').style.display='none';$('dmPanel').style.display='flex';$('conversationName').textContent=u.name;$('dmTitle').textContent=u.name;$('chatOnline').textContent=u.online?'Online':'Offline';syncNativeViewingState();loadDM(u.id,true);$('dmInput').blur();if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur()}
 function closeDM(){lastMessageContext=null;$('chatActionsMenu').hidden=true;if(currentPeer)saveDraft(draftKey(currentPeer.id),$('dmInput'));cancelReply();dmRequestSeq++;currentPeer=null;seenDM.clear();$('dmMessages').innerHTML='';$('dmMessages').dataset.initialized='0';$('dmPanel').style.display='none';document.querySelector('.chat-shell').style.display='block';restoreDraft('general',$('generalInput'));$('conversationName').textContent='General chat';syncNativeViewingState();loadGeneral()}
 async function loadDM(peerId,autoFocusIfNew=false){const selectedPeerId=peerId||(currentPeer&&currentPeer.id);if(!selectedPeerId||!currentPeer||currentPeer.id!==selectedPeerId)return;const requestId=++dmRequestSeq;try{const arr=await api('/api/dm?me='+encodeURIComponent(deviceId)+'&peer='+encodeURIComponent(selectedPeerId));if(!currentPeer||currentPeer.id!==selectedPeerId||requestId!==dmRequestSeq)return;const box=$('dmMessages');const normalized=arr.map(m=>({...m,username:m.from===deviceId?'You':m.fromName,userId:m.from,text:m.text,timestamp:m.timestamp}));updateMessageList(normalized,box,m=>m.from===deviceId,seenDM);if(autoFocusIfNew&&normalized.length===0&&!draftStore.has(draftKey(selectedPeerId))){$('dmInput').focus()}if(!document.hidden){const latest=normalized.reduce((n,m)=>Math.max(n,Number(m.timestamp)||0),0);markConversationRead(selectedPeerId,latest)}}catch(_){}}
@@ -677,6 +720,7 @@ function updateAppViewportHeight(){
 updateAppViewportHeight();
 window.addEventListener('resize',updateAppViewportHeight,{passive:true});
 if(window.visualViewport){window.visualViewport.addEventListener('resize',updateAppViewportHeight,{passive:true});window.visualViewport.addEventListener('scroll',updateAppViewportHeight,{passive:true});}
+document.addEventListener('focusin',e=>{if(e.target.matches('#generalInput,#dmInput'))document.body.classList.add('composer-focused')});document.addEventListener('focusout',e=>{if(e.target.matches('#generalInput,#dmInput'))setTimeout(()=>{if(!document.activeElement||!document.activeElement.matches('#generalInput,#dmInput'))document.body.classList.remove('composer-focused')},80)});
 
 /* Floating latest-message controls for both chat panes. */
 (function(){
@@ -890,21 +934,3 @@ body.keyboard-open .footer{display:none!important}
 </body>
 </html>
 
-<style id="esharex-261-final-layout-fixes">
-/* 2.6.1: hard caps and intrinsic-width image/caption alignment */
-.menu{z-index:1250;max-height:min(75dvh,560px);overflow:auto}
-#infoModal{z-index:1400}
-.menu button{min-height:42px}
-.bubble.image-message{display:block!important;box-sizing:border-box!important;min-width:0!important;width:max-content;max-width:min(68vw,436px)!important;padding:7px!important;overflow:hidden!important}
-.bubble.image-message>img{display:block!important;max-width:100%!important;max-height:300px!important;width:auto;height:auto;object-fit:contain;margin:0 auto!important}
-.bubble.image-message .media-caption{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important;word-break:break-word!important;line-height:1.38!important;margin:6px 0 0!important}
-.bubble:not(.image-message){font-size:13px!important;line-height:1.38!important;padding:8px 10px!important}
-.message-text{font-size:13px!important;line-height:1.38!important;overflow-wrap:anywhere}
-@media(max-width:600px){
- .bubble.image-message{max-width:calc(min(68vw,260px) + 16px)!important}
- .bubble.image-message>img{max-height:210px!important}
- .bubble:not(.image-message){font-size:12.5px!important;padding:7px 9px!important}
- .message-text{font-size:12.5px!important}
-}
-@media(min-width:601px){.bubble.image-message{max-width:calc(min(52vw,420px) + 16px)!important}}
-</style>

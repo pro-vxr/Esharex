@@ -11,6 +11,8 @@ import java.io.*;
 import java.net.Inet4Address;
 import java.net.NetworkInterface;
 import java.util.*;
+import java.text.Normalizer;
+import java.security.MessageDigest;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -35,6 +37,7 @@ public class ShareHttpServer extends NanoHTTPD {
         loadArray(messagesFile, messages);
         loadArray(dmFile, directMessages);
         loadUsers();
+        migrateUsersToStableUsernameIds();
         long maxSequence = 0L;
         for (JSONObject message : messages) maxSequence = Math.max(maxSequence, message.optLong("eventSeq", 0L));
         for (JSONObject message : directMessages) maxSequence = Math.max(maxSequence, message.optLong("eventSeq", 0L));
@@ -46,7 +49,7 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.6.1"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.6.3"));
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
                 return json(new JSONObject().put("ip", ip).put("port", 8080).put("available", !"127.0.0.1".equals(ip)).put("address", "http://" + ip + ":8080"));
@@ -97,23 +100,112 @@ public class ShareHttpServer extends NanoHTTPD {
 
     private Response register(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session);
-        String id = safeText(in.optString("id", ""), 80);
+        String requestedId = safeText(in.optString("id", ""), 80);
         String name = safeText(in.optString("name", "Guest"), 32);
-        if (id.isEmpty() || name.isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "Device ID and name are required");
-        JSONObject user = users.get(id);
-        if (user == null) user = new JSONObject().put("id", id).put("joinedAt", System.currentTimeMillis());
-        long now = System.currentTimeMillis();
-        long previousSeen = user.optLong("lastSeen", 0);
-        user.put("name", name).put("lastSeen", now);
-        // A returning user starts a fresh notification window: offline messages remain unread,
-        // but are not replayed as a burst of push-style alerts.
-        if (previousSeen == 0 || now - previousSeen > 45000L || !user.has("notificationCursorSeq")) {
-            // Suppress historical notifications on first registration/reconnection.
-            // Unread counters remain independent and are not cleared.
-            user.put("notificationCursorSeq", currentEventSequence());
+        if (requestedId.isEmpty() || name.isEmpty())
+            return jsonError(Response.Status.BAD_REQUEST, "Device ID and name are required");
+
+        // Username-only identity: the normalized username maps to one stable account ID.
+        // This lets the same browser reconnect after its origin/IP changes. It is NOT secure
+        // authentication: anyone on the LAN who chooses the same username shares that identity.
+        String normalizedName = normalizeUsername(name);
+        if (normalizedName.isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "A display name is required");
+        String canonicalId = stableUsernameId(normalizedName);
+
+        synchronized (users) {
+            JSONObject canonical = users.get(canonicalId);
+            ArrayList<String> aliases = new ArrayList<>();
+            List<JSONObject> legacyMatches = new ArrayList<>();
+            for (JSONObject candidate : new ArrayList<>(users.values())) {
+                String candidateId = candidate.optString("id", "");
+                if (!candidateId.isEmpty() && !candidateId.equals(canonicalId)
+                        && normalizedName.equals(normalizeUsername(candidate.optString("name", "")))) {
+                    legacyMatches.add(candidate);
+                }
+            }
+
+            if (canonical == null && !legacyMatches.isEmpty()) {
+                canonical = legacyMatches.get(0);
+                for (JSONObject candidate : legacyMatches) {
+                    if (candidate.optLong("joinedAt", Long.MAX_VALUE) < canonical.optLong("joinedAt", Long.MAX_VALUE))
+                        canonical = candidate;
+                }
+                // The selected legacy row itself must also be migrated to the stable ID.
+                aliases.add(canonical.optString("id", ""));
+            }
+            if (canonical == null) {
+                canonical = new JSONObject().put("joinedAt", System.currentTimeMillis());
+            }
+            for (JSONObject candidate : legacyMatches) {
+                if (candidate != canonical) {
+                    mergeReadState(canonical, candidate);
+                    aliases.add(candidate.optString("id", ""));
+                }
+            }
+            canonical.put("id", canonicalId);
+            long now = System.currentTimeMillis();
+            long previousSeen = canonical.optLong("lastSeen", 0L);
+            canonical.put("name", name).put("lastSeen", now);
+            if (previousSeen == 0L || now - previousSeen > 45000L || !canonical.has("notificationCursorSeq"))
+                canonical.put("notificationCursorSeq", currentEventSequence());
+
+            // Store the canonical row before migrating references so read-state migration can
+            // find the destination. Old aliases are removed only after their message IDs move.
+            users.put(canonicalId, canonical);
+            for (String alias : new LinkedHashSet<>(aliases)) {
+                if (alias.isEmpty() || alias.equals(canonicalId)) continue;
+                migrateUserReferences(alias, canonicalId);
+                users.remove(alias);
+            }
+            saveUsers();
+            saveArray(messagesFile, messages);
+            saveArray(dmFile, directMessages);
+            return json(new JSONObject().put("success", true).put("canonicalId", canonicalId)
+                    .put("user", canonical).put("mergedRecords", new LinkedHashSet<>(aliases).size()));
         }
-        users.put(id, user); saveUsers();
-        return json(new JSONObject().put("success", true).put("user", user));
+    }
+
+    private String normalizeUsername(String name) {
+        if (name == null) return "";
+        return Normalizer.normalize(name.trim(), Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
+    }
+
+    private String stableUsernameId(String normalizedName) throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(normalizedName.getBytes("UTF-8"));
+        StringBuilder hex = new StringBuilder("user-");
+        for (byte value : digest) hex.append(String.format(Locale.ROOT, "%02x", value & 0xff));
+        return hex.toString();
+    }
+
+    private void mergeReadState(JSONObject target, JSONObject source) throws Exception {
+        target.put("generalReadAt", Math.max(target.optLong("generalReadAt", 0), source.optLong("generalReadAt", 0)));
+        target.put("notificationCursorSeq", Math.max(target.optLong("notificationCursorSeq", 0), source.optLong("notificationCursorSeq", 0)));
+        JSONObject targetDM = target.optJSONObject("dmReadAt");
+        if (targetDM == null) targetDM = new JSONObject();
+        JSONObject sourceDM = source.optJSONObject("dmReadAt");
+        if (sourceDM != null) {
+            java.util.Iterator<String> keys = sourceDM.keys();
+            while (keys.hasNext()) {
+                String peer = keys.next();
+                targetDM.put(peer, Math.max(targetDM.optLong(peer, 0), sourceDM.optLong(peer, 0)));
+            }
+        }
+        target.put("dmReadAt", targetDM);
+    }
+
+    private void migrateUserReferences(String oldId, String newId) throws Exception {
+        for (JSONObject msg : messages) if (oldId.equals(msg.optString("userId"))) msg.put("userId", newId);
+        for (JSONObject msg : directMessages) {
+            if (oldId.equals(msg.optString("from"))) msg.put("from", newId);
+            if (oldId.equals(msg.optString("to"))) msg.put("to", newId);
+        }
+        for (JSONObject user : users.values()) {
+            JSONObject dmReadAt = user.optJSONObject("dmReadAt");
+            if (dmReadAt != null && dmReadAt.has(oldId)) {
+                dmReadAt.put(newId, Math.max(dmReadAt.optLong(newId, 0), dmReadAt.optLong(oldId, 0)));
+                dmReadAt.remove(oldId);
+            }
+        }
     }
     private Response leave(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session);
@@ -131,12 +223,7 @@ public class ShareHttpServer extends NanoHTTPD {
     private Response heartbeat(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session); String id = safeText(in.optString("id", ""), 80);
         JSONObject user = users.get(id);
-        if (user == null) {
-            String name = safeText(in.optString("name", ""), 32);
-            if (id.isEmpty() || name.isEmpty()) return jsonError(Response.Status.UNAUTHORIZED, "Register first");
-            user = new JSONObject().put("id", id).put("name", name).put("joinedAt", System.currentTimeMillis());
-            users.put(id, user);
-        }
+        if (user == null) return jsonError(Response.Status.UNAUTHORIZED, "Register first");
         user.put("lastSeen", System.currentTimeMillis()); saveUsers();
         return json(new JSONObject().put("success", true).put("online", true));
     }
@@ -419,6 +506,60 @@ public class ShareHttpServer extends NanoHTTPD {
     private void loadArray(File f,List<JSONObject> target){try{if(f.exists()){JSONArray a=new JSONArray(readFile(f));for(int i=0;i<a.length();i++)target.add(a.getJSONObject(i));}}catch(Exception ignored){}}
     private synchronized void saveArray(File f,List<JSONObject> source){File temp=new File(f.getParentFile(),f.getName()+".tmp");try(FileOutputStream o=new FileOutputStream(temp)){o.write(arrayCopy(source).toString().getBytes("UTF-8"));o.getFD().sync();}catch(Exception ignored){temp.delete();return;}if(!temp.renameTo(f)){try(FileInputStream in=new FileInputStream(temp);FileOutputStream out=new FileOutputStream(f)){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}catch(Exception ignored){}temp.delete();}}
     private void loadUsers(){try{if(usersFile.exists()){JSONArray a=new JSONArray(readFile(usersFile));for(int i=0;i<a.length();i++){JSONObject u=a.getJSONObject(i);users.put(u.getString("id"),u);}}}catch(Exception ignored){}}
+    private void migrateUsersToStableUsernameIds() {
+        synchronized (users) {
+            Map<String, List<JSONObject>> groups = new LinkedHashMap<>();
+            Map<String, JSONObject> preserved = new LinkedHashMap<>();
+            for (JSONObject user : new ArrayList<>(users.values())) {
+                String normalized = normalizeUsername(user.optString("name", ""));
+                if (normalized.isEmpty()) {
+                    String id = user.optString("id", "");
+                    if (!id.isEmpty()) preserved.put(id, user);
+                } else {
+                    groups.computeIfAbsent(normalized, key -> new ArrayList<>()).add(user);
+                }
+            }
+
+            Map<String, String> aliases = new LinkedHashMap<>();
+            for (Map.Entry<String, List<JSONObject>> entry : groups.entrySet()) {
+                String stableId;
+                try { stableId = stableUsernameId(entry.getKey()); }
+                catch (Exception e) { continue; }
+                List<JSONObject> records = entry.getValue();
+                JSONObject canonical = records.get(0);
+                for (JSONObject candidate : records) {
+                    if (candidate.optLong("joinedAt", Long.MAX_VALUE) < canonical.optLong("joinedAt", Long.MAX_VALUE))
+                        canonical = candidate;
+                }
+                long oldestJoin = canonical.optLong("joinedAt", System.currentTimeMillis());
+                long newestSeen = canonical.optLong("lastSeen", 0L);
+                for (JSONObject candidate : records) {
+                    if (candidate != canonical) {
+                        try { mergeReadState(canonical, candidate); } catch (Exception ignored) { }
+                    }
+                    oldestJoin = Math.min(oldestJoin, candidate.optLong("joinedAt", oldestJoin));
+                    newestSeen = Math.max(newestSeen, candidate.optLong("lastSeen", 0L));
+                    String oldId = candidate.optString("id", "");
+                    if (!oldId.isEmpty() && !oldId.equals(stableId)) aliases.put(oldId, stableId);
+                }
+                canonical.put("id", stableId).put("joinedAt", oldestJoin).put("lastSeen", newestSeen);
+                preserved.put(stableId, canonical);
+            }
+
+            users.clear();
+            users.putAll(preserved);
+            for (Map.Entry<String, String> alias : aliases.entrySet()) {
+                if (!alias.getKey().equals(alias.getValue())) {
+                    try { migrateUserReferences(alias.getKey(), alias.getValue()); } catch (Exception ignored) { }
+                }
+            }
+            if (!aliases.isEmpty()) {
+                saveUsers();
+                saveArray(messagesFile, messages);
+                saveArray(dmFile, directMessages);
+            }
+        }
+    }
     private synchronized void saveUsers(){JSONArray a=new JSONArray();for(JSONObject u:users.values())a.put(u);File temp=new File(dataDir,"users.json.tmp");try(FileOutputStream o=new FileOutputStream(temp)){o.write(a.toString().getBytes("UTF-8"));o.getFD().sync();}catch(Exception ignored){temp.delete();return;}if(!temp.renameTo(usersFile)){try(FileInputStream in=new FileInputStream(temp);FileOutputStream out=new FileOutputStream(usersFile)){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}catch(Exception ignored){}temp.delete();}}
     private String readFile(File f)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();try(InputStream in=new FileInputStream(f)){byte[]b=new byte[4096];int n;while((n=in.read(b))!=-1)o.write(b,0,n);}return o.toString("UTF-8");}
     private Response serveUpload(String name, IHTTPSession session) throws Exception {

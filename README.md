@@ -1,25 +1,13 @@
-# eShareX 2.6.1
+# eShareX 2.6.3
 
-Local-network file sharing and chat for Android and modern web browsers.
+## 2.6.3 identity and continuity update
 
-## 2.6.1 corrections
+- Uses a stable account ID derived from the normalized username, so the same username reconnects consistently even when a browser reaches the server through a different local IP/origin.
+- Migrates legacy duplicate rows for the same normalized username to that stable ID and updates references in general messages, direct messages, and per-user read state.
+- Does not use IP address or browser origin as an identity key.
+- Keeps media-type icons, compact attachment cards, responsive image bounds, caption wrapping, and composer-aware latest-message controls from 2.6.2.
+- Android version 2.6.3 / versionCode 31; health endpoint and PWA cache version updated.
 
-- Removed the literal `\\n` text node that was appearing above the application header.
-- Server Management closes the top-level menu synchronously before requesting server details and opening the modal.
-- Raised the server modal above menus and other overlays.
-- Removed the redundant Enable notifications menu item. The existing first-open notification permission prompt remains unchanged.
-- Reordered menu actions: Server Management, Export conversation, Install App (when available), Exit App, Logout.
-- Replaced conflicting image-message sizing with one intrinsic-dimension sizing helper shared by General Chat and private chats.
-- Image messages now scale down to a maximum of 260 px wide / 210 px high on narrow screens and 420 px wide / 300 px high on larger screens, preserving aspect ratio. Smaller images remain smaller.
-- Caption width follows the displayed image width and long captions wrap inside that width.
-- Image dimensions are recalculated after viewport resizing and orientation changes.
-- Kept compact text-message typography and padding across Android WebView, mobile web, and desktop web.
-- Updated Android version, health endpoint, and PWA cache identifier to 2.6.1.
+## Identity limitation
 
-## Validation
-
-Source checks performed: HTML parser pass, JavaScript syntax pass, CSS syntax pass, menu-order assertions, server-menu-close assertion, first-open notification prompt presence, and version consistency. The Android Gradle build could not be run in this environment because `services.gradle.org` was unreachable. The signed APK must be verified by the repository's GitHub Actions workflow. Physical-device and browser testing are still required; this archive does not claim those tests have passed.
-
-## Build
-
-Use the included GitHub Actions workflow to build the signed release APK. It uses the repository's existing Actions signing secrets.
+This build intentionally uses username-only identity because no PIN or password was requested. Usernames are case-insensitive and Unicode-normalized. Two different people choosing the same username will share one account identity, including its direct-message identity. This is not authentication and should only be used on a trusted local network. A secure distinction between people with identical usernames requires an additional credential or account identifier.
