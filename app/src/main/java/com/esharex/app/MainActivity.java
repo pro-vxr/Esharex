@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
+import android.net.wifi.WifiManager;
 import android.content.Context;
 import androidx.core.content.ContextCompat;
 import java.util.UUID;
@@ -49,7 +50,55 @@ public class MainActivity extends Activity {
     private NsdManager nsdManager;
     private NsdManager.DiscoveryListener discoveryListener;
     private final Map<String, NsdServiceInfo> nearby = new HashMap<>();
+    private WifiManager.MulticastLock multicastLock;
+    private boolean autoJoinStarted = false;
+    private int autoJoinAttempts = 0;
     private static final String SERVICE_TYPE = "_esharex._tcp.";
+    private final Runnable autoJoinTask = new Runnable() {
+        @Override public void run() {
+            if (isFinishing() || discoveryListener == null || autoJoinStarted) return;
+            NsdServiceInfo candidate = null;
+            String localName = getLocalServiceName();
+            synchronized (nearby) {
+                for (NsdServiceInfo info : nearby.values()) {
+                    if (info.getServiceName() == null || info.getHost() == null) continue;
+                    String host = info.getHost().getHostAddress();
+                    if (host == null || !host.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")) continue;
+                    if (info.getServiceName().compareTo(localName) < 0 &&
+                        (candidate == null || info.getServiceName().compareTo(candidate.getServiceName()) < 0)) {
+                        candidate = info;
+                    }
+                }
+            }
+            if (candidate == null) return; // This device is the elected host.
+            final String host = candidate.getHost().getHostAddress();
+            final int port = candidate.getPort();
+            autoJoinAttempts++;
+            executor.execute(() -> {
+                boolean healthy = false;
+                HttpURLConnection connection = null;
+                try {
+                    connection = (HttpURLConnection) new URL("http://" + host + ":" + port + "/api/health").openConnection();
+                    connection.setConnectTimeout(1800);
+                    connection.setReadTimeout(1800);
+                    healthy = connection.getResponseCode() == 200;
+                } catch (Exception ignored) {
+                } finally {
+                    if (connection != null) connection.disconnect();
+                }
+                final boolean ready = healthy;
+                handler.post(() -> {
+                    if (isFinishing() || discoveryListener == null || autoJoinStarted) return;
+                    if (ready) {
+                        autoJoinStarted = true;
+                        joinNearbyUrl("http://" + host + ":" + port + "/");
+                    } else if (autoJoinAttempts < 6) {
+                        handler.postDelayed(autoJoinTask, 1800L);
+                    }
+                });
+            });
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -206,6 +255,24 @@ public class MainActivity extends Activity {
         public String getDeviceId() { return getStableDeviceId(); }
 
         @JavascriptInterface
+        public String getSavedDisplayName() {
+            return getSharedPreferences("esharex_identity", MODE_PRIVATE).getString("display_name", "");
+        }
+
+        @JavascriptInterface
+        public void saveDisplayName(String name) {
+            if (name == null) return;
+            String clean = name.trim();
+            if (clean.length() > 32) clean = clean.substring(0, 32);
+            getSharedPreferences("esharex_identity", MODE_PRIVATE).edit().putString("display_name", clean).apply();
+        }
+
+        @JavascriptInterface
+        public void clearSavedDisplayName() {
+            getSharedPreferences("esharex_identity", MODE_PRIVATE).edit().remove("display_name").apply();
+        }
+
+        @JavascriptInterface
         public void exitApp() {
             runOnUiThread(() -> {
                 try { stopService(new Intent(MainActivity.this, ShareServerService.class)); } catch (Exception ignored) {}
@@ -225,15 +292,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void joinNearby(String url) {
-            runOnUiThread(() -> {
-                if (url != null && url.matches("http://[0-9.]+:8080/?")) {
-                    stopDiscovery();
-                    homeUrl = url.endsWith("/") ? url : url + "/";
-                    getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().putString("connected_url", homeUrl).apply();
-                    stopService(new Intent(MainActivity.this, ShareServerService.class));
-                    webView.loadUrl(homeUrl);
-                }
-            });
+            runOnUiThread(() -> joinNearbyUrl(url));
         }
 
         @JavascriptInterface
@@ -321,36 +380,89 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String getLocalServiceName() {
+        String clean = getStableDeviceId().replaceAll("[^A-Za-z0-9]", "");
+        String suffix = clean.substring(Math.max(0, clean.length() - 12));
+        return "eShareX-" + suffix;
+    }
+
+    private void joinNearbyUrl(String url) {
+        if (url == null || !url.matches("http://[0-9.]+:8080/?") || webView == null) return;
+        stopDiscovery();
+        homeUrl = url.endsWith("/") ? url : url + "/";
+        getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().putString("connected_url", homeUrl).apply();
+        stopService(new Intent(MainActivity.this, ShareServerService.class));
+        pageRequested = true;
+        webView.loadUrl(homeUrl);
+    }
+
     private void beginDiscovery() {
-        if (nsdManager == null || discoveryListener != null) return;
+        // A device already attached to a room must not elect or switch to another host.
+        if (!HOME_URL.equals(homeUrl) || nsdManager == null || discoveryListener != null) return;
         nearby.clear();
+        autoJoinStarted = false;
+        autoJoinAttempts = 0;
+        try {
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifi != null) {
+                multicastLock = wifi.createMulticastLock("eShareX:Discovery");
+                multicastLock.setReferenceCounted(false);
+                multicastLock.acquire();
+            }
+        } catch (Exception ignored) {
+            multicastLock = null;
+        }
         discoveryListener = new NsdManager.DiscoveryListener() {
             @Override public void onDiscoveryStarted(String type) { publishNearby(); }
             @Override public void onServiceFound(NsdServiceInfo service) {
                 if (!SERVICE_TYPE.equals(service.getServiceType())) return;
-                String ownName = "eShareX-" + getStableDeviceId().replaceAll("[^A-Za-z0-9]", "").replaceAll("^.*(?=.{12}$)", "");
-                if (ownName.equals(service.getServiceName())) return;
-                nsdManager.resolveService(service, new NsdManager.ResolveListener() {
-                    @Override public void onResolveFailed(NsdServiceInfo info, int errorCode) {}
-                    @Override public void onServiceResolved(NsdServiceInfo info) {
-                        String host = info.getHost() == null ? "" : info.getHost().getHostAddress();
-                        if (!host.isEmpty() && !host.equals("127.0.0.1")) {
-                            synchronized (nearby) { nearby.put(info.getServiceName(), info); }
-                            publishNearby();
+                if (getLocalServiceName().equals(service.getServiceName())) return;
+                try {
+                    nsdManager.resolveService(service, new NsdManager.ResolveListener() {
+                        @Override public void onResolveFailed(NsdServiceInfo info, int errorCode) {
+                            android.util.Log.w("eShareX", "NSD resolve failed: " + errorCode);
                         }
-                    }
-                });
+                        @Override public void onServiceResolved(NsdServiceInfo info) {
+                            String host = info.getHost() == null ? "" : info.getHost().getHostAddress();
+                            if (!host.isEmpty() && !host.equals("127.0.0.1")) {
+                                synchronized (nearby) { nearby.put(info.getServiceName(), info); }
+                                publishNearby();
+                                handler.removeCallbacks(autoJoinTask);
+                                handler.postDelayed(autoJoinTask, 2500L);
+                            }
+                        }
+                    });
+                } catch (Exception error) {
+                    android.util.Log.w("eShareX", "NSD resolve request failed", error);
+                }
             }
             @Override public void onServiceLost(NsdServiceInfo service) {
                 synchronized (nearby) { nearby.remove(service.getServiceName()); }
                 publishNearby();
             }
             @Override public void onDiscoveryStopped(String type) {}
-            @Override public void onStartDiscoveryFailed(String type, int errorCode) { stopDiscovery(); }
-            @Override public void onStopDiscoveryFailed(String type, int errorCode) { stopDiscovery(); }
+            @Override public void onStartDiscoveryFailed(String type, int errorCode) {
+                android.util.Log.e("eShareX", "NSD discovery start failed: " + errorCode);
+                stopDiscovery();
+            }
+            @Override public void onStopDiscoveryFailed(String type, int errorCode) {
+                android.util.Log.e("eShareX", "NSD discovery stop failed: " + errorCode);
+                stopDiscovery();
+            }
         };
         try { nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener); }
-        catch (Exception ignored) { discoveryListener = null; }
+        catch (Exception error) {
+            android.util.Log.e("eShareX", "Could not start NSD discovery", error);
+            discoveryListener = null;
+            releaseMulticastLock();
+        }
+    }
+
+    private void releaseMulticastLock() {
+        try {
+            if (multicastLock != null && multicastLock.isHeld()) multicastLock.release();
+        } catch (Exception ignored) {}
+        multicastLock = null;
     }
 
     private void publishNearby() {
@@ -374,10 +486,12 @@ public class MainActivity extends Activity {
     }
 
     private void stopDiscovery() {
+        handler.removeCallbacks(autoJoinTask);
         if (nsdManager != null && discoveryListener != null) {
             try { nsdManager.stopServiceDiscovery(discoveryListener); } catch (Exception ignored) {}
             discoveryListener = null;
         }
+        releaseMulticastLock();
     }
 
     private void waitForServerAndLoad() {
