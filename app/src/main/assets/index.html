@@ -300,7 +300,7 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
 }
 
 </style>
-\n<style id="esharex-260-global-refinements">
+<style id="esharex-260-global-refinements">
 /* 2.6.0: consistent compact UI across Android WebView, mobile web and desktop web */
 .friends-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:10px;align-items:start}
 .friend-card{min-width:0;min-height:74px;padding:11px 13px!important;gap:10px;border-radius:20px;box-shadow:0 8px 24px #0004}
@@ -325,6 +325,7 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
 .media-preview-element,.media-preview-stage img.media-preview-element,.media-preview-stage video.media-preview-element{display:block;width:auto;height:auto;max-width:100%;max-height:66dvh;object-fit:contain}
 .media-preview-actions{flex:0 0 auto}
 .menu{z-index:1250;max-height:min(75dvh,560px);overflow:auto}
+#infoModal{z-index:1400}
 .menu button{min-height:42px}
 @media(max-width:600px){
  .friends-grid{grid-template-columns:minmax(0,1fr);gap:9px}
@@ -349,13 +350,12 @@ body.conversation-mode #friendsPage{overflow-y:auto;overscroll-behavior:contain}
 <header class="topbar">
  <div class="brand" aria-label="eShareX"><span class="brandmark">eX</span><span>eShareX</span></div>
  <div class="top-actions"><button class="iconbtn share-action" aria-label="Share eShareX" onclick="shareApp()">↗</button><button class="iconbtn" aria-label="More options" onclick="toggleMenu()">⋮</button></div>
- <div class="menu" id="moreMenu">
-  <button onclick="exitApp()">⏻ &nbsp; Exit App</button>
-   <button id="serverMenuItem" onclick="showServerInfo()">⌁ &nbsp; Server Management</button>
-   <button id="exportMenuItem" onclick="exportCurrentConversation()">⇩ &nbsp; Export conversation</button>
-  <button id="logoutMenuItem" onclick="logout()">↪ &nbsp; Logout</button>
-  <button id="installMenuItem" onclick="installWebApp()">↓ &nbsp; Install App</button>
-  <button onclick="enableNotifications()">♧ &nbsp; Enable notifications</button>
+ <div class="menu" id="moreMenu" role="menu" aria-label="More options">
+  <button id="serverMenuItem" type="button" role="menuitem" onclick="showServerInfo()">⌁ &nbsp; Server Management</button>
+  <button id="exportMenuItem" type="button" role="menuitem" onclick="exportCurrentConversation()">⇩ &nbsp; Export conversation</button>
+  <button id="installMenuItem" type="button" role="menuitem" onclick="installWebApp()">↓ &nbsp; Install App</button>
+  <button id="exitMenuItem" type="button" role="menuitem" onclick="exitApp()">⏻ &nbsp; Exit App</button>
+  <button id="logoutMenuItem" type="button" role="menuitem" onclick="logout()">↪ &nbsp; Logout</button>
  </div>
 </header>
 <main class="layout">
@@ -508,6 +508,22 @@ function toggleFriendsMenu(){const menu=$('friendsMenu');const anchor=document.q
 function showFriendSearch(){$('friendsMenu').hidden=true;$('friendsTools').hidden=false;$('friendSearch').focus()}
 function filterFriends(){const q=$('friendSearch').value.trim().toLowerCase();document.querySelectorAll('#friendsGrid .friend-card').forEach(c=>{const name=c.querySelector('strong')?.textContent.toLowerCase()||'';c.hidden=(!name.includes(q))||(onlineOnly&&c.dataset.online!=='true')})}
 function toggleOnlineOnly(){onlineOnly=!onlineOnly;$('friendsMenu').hidden=true;$('friendsTools').hidden=false;$('onlineOnlyBtn').textContent=onlineOnly?'Show all friends':'Show online only';document.querySelectorAll('#friendsGrid .friend-card').forEach(c=>c.hidden=onlineOnly&&c.dataset.online!=='true'||!!$('friendSearch').value.trim()&&!c.querySelector('strong').textContent.toLowerCase().includes($('friendSearch').value.trim().toLowerCase()))}
+function fitImageMessage(image){
+ const bubble=image&&image.closest('.bubble.image-message');
+ if(!bubble||!image.naturalWidth||!image.naturalHeight)return;
+ const mobile=window.matchMedia('(max-width:600px)').matches;
+ const maxWidth=Math.min(mobile?260:420,Math.floor(window.innerWidth*(mobile?0.68:0.52)));
+ const maxHeight=mobile?210:300;
+ const scale=Math.min(1,maxWidth/image.naturalWidth,maxHeight/image.naturalHeight);
+ const width=Math.max(1,Math.round(image.naturalWidth*scale));
+ const height=Math.max(1,Math.round(image.naturalHeight*scale));
+ image.style.setProperty('width',width+'px','important');image.style.setProperty('height',height+'px','important');
+ bubble.style.setProperty('width',(width+16)+'px','important');bubble.style.setProperty('max-width',(width+16)+'px','important');
+}
+if(!window.__esharexImageResizeBound){
+ window.__esharexImageResizeBound=true;
+ window.addEventListener('resize',()=>document.querySelectorAll('.bubble.image-message img').forEach(fitImageMessage),{passive:true});
+}
 function renderMessage(m,container,mine){
  const row=document.createElement('div');row.className='msgrow'+(mine?' mine':'');row.dataset.messageId=m.id||'';row.dataset.signature=JSON.stringify(m);
  const b=document.createElement('div');b.className='bubble';
@@ -515,7 +531,18 @@ function renderMessage(m,container,mine){
  if(m.replyTo){const q=document.createElement('button');q.type='button';q.className='quoted-message';q.textContent='↳ '+(m.replyTo.text||m.replyTo.filename||'Attachment');q.title='Jump to original message';q.addEventListener('click',()=>jumpToOriginal(m.replyTo.messageId));b.appendChild(q)}
  if(m.type==='file'){
   b.classList.add('media-bubble');
-  if((m.mime||'').startsWith('image/')){b.classList.add('image-message');const im=document.createElement('img');im.src=m.url;im.alt=m.filename||'Shared image';im.loading='lazy';im.onclick=()=>openMedia('img',m.url,m.filename);b.appendChild(im)}
+  if((m.mime||'').startsWith('image/')){
+   b.classList.add('image-message');
+   const im=document.createElement('img');
+   im.alt=m.filename||'Shared image';
+   im.loading='lazy';
+   im.addEventListener('load',()=>fitImageMessage(im),{once:true});
+   im.addEventListener('error',()=>{im.alt='Image unavailable';im.style.removeProperty('width');im.style.removeProperty('height');b.style.removeProperty('width');b.style.removeProperty('max-width')} ,{once:true});
+   im.onclick=()=>openMedia('img',m.url,m.filename);
+   b.appendChild(im);
+   im.src=m.url;
+   if(im.complete&&im.naturalWidth)fitImageMessage(im);
+  }
   else if((m.mime||'').startsWith('video/')){const videoWrap=document.createElement('div');videoWrap.className='video-message-wrap';const v=document.createElement('video');v.src=m.url;v.controls=true;v.preload='metadata';v.addEventListener('dblclick',()=>openMedia('video',m.url,m.filename));const previewBtn=document.createElement('button');previewBtn.type='button';previewBtn.className='media-preview-btn';previewBtn.textContent='Open preview';previewBtn.onclick=()=>openMedia('video',m.url,m.filename);videoWrap.append(v,previewBtn);b.appendChild(videoWrap)}
   else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.download=m.filename||'download';link.setAttribute('aria-label','Download '+(m.filename||'file'));const icon=document.createElement('span');icon.className='filecard-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';const action=document.createElement('span');action.className='filecard-download-text';action.textContent='Download';link.append(icon,meta,action);b.appendChild(link)}
   if(m.caption){const c=document.createElement('div');c.className='media-caption';c.textContent=m.caption;b.appendChild(c)}
@@ -574,7 +601,9 @@ function openDM(u){lastMessageContext=null;$('chatActionsMenu').hidden=true;if(c
 function closeDM(){lastMessageContext=null;$('chatActionsMenu').hidden=true;if(currentPeer)saveDraft(draftKey(currentPeer.id),$('dmInput'));cancelReply();dmRequestSeq++;currentPeer=null;seenDM.clear();$('dmMessages').innerHTML='';$('dmMessages').dataset.initialized='0';$('dmPanel').style.display='none';document.querySelector('.chat-shell').style.display='block';restoreDraft('general',$('generalInput'));$('conversationName').textContent='General chat';syncNativeViewingState();loadGeneral()}
 async function loadDM(peerId,autoFocusIfNew=false){const selectedPeerId=peerId||(currentPeer&&currentPeer.id);if(!selectedPeerId||!currentPeer||currentPeer.id!==selectedPeerId)return;const requestId=++dmRequestSeq;try{const arr=await api('/api/dm?me='+encodeURIComponent(deviceId)+'&peer='+encodeURIComponent(selectedPeerId));if(!currentPeer||currentPeer.id!==selectedPeerId||requestId!==dmRequestSeq)return;const box=$('dmMessages');const normalized=arr.map(m=>({...m,username:m.from===deviceId?'You':m.fromName,userId:m.from,text:m.text,timestamp:m.timestamp}));updateMessageList(normalized,box,m=>m.from===deviceId,seenDM);if(autoFocusIfNew&&normalized.length===0&&!draftStore.has(draftKey(selectedPeerId))){$('dmInput').focus()}if(!document.hidden){const latest=normalized.reduce((n,m)=>Math.max(n,Number(m.timestamp)||0),0);markConversationRead(selectedPeerId,latest)}}catch(_){}}
 async function sendDM(){const text=$('dmInput').value.replace(/\r\n?/g,'\n').trim();if(!text||!currentPeer)return;const peerId=currentPeer.id;const reply=replyTarget&&replyTarget._conversation==='dm:'+peerId?{text:messagePreview(replyTarget),messageId:replyTarget.id,username:replyTarget.username||replyTarget.fromName||''}:null;try{await api('/api/dm',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({from:deviceId,to:peerId,text,replyTo:reply})});if(currentPeer&&currentPeer.id===peerId){$('dmInput').value='';$('dmInput').style.height='40px';saveDraft(draftKey(peerId),$('dmInput'));cancelReply();await loadDM(peerId)}}catch(_){toast('Private message could not be sent')}}
-function toggleMenu(){$('moreMenu').classList.toggle('show')}
+function toggleMenu(){const menu=$('moreMenu');menu.classList.toggle('show')}
+document.addEventListener('click',e=>{if(!e.target.closest('#moreMenu')&&!e.target.closest('.top-actions [aria-label="More options"]'))$('moreMenu').classList.remove('show')});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$('moreMenu').classList.remove('show')});
 async function exitApp(){
  $('moreMenu').classList.remove('show');
  if(isNative&&window.AndroidBridge&&typeof AndroidBridge.exitApp==='function'){
@@ -587,13 +616,12 @@ async function exitApp(){
 
 async function exportCurrentConversation(){ $('moreMenu').classList.remove('show');const url=currentPeer?'/api/export/dm?me='+encodeURIComponent(deviceId)+'&peer='+encodeURIComponent(currentPeer.id):'/api/export/chat';try{const r=await fetch(url);if(!r.ok)throw new Error('Export failed');const blob=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=currentPeer?'esharex-private-chat.txt':'esharex-chat.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Conversation exported')}catch(_){toast('Could not export conversation')}}
 async function logout(){ $('moreMenu').classList.remove('show');cancelReply();if(isNative&&window.AndroidBridge?.stopNotificationMonitor)AndroidBridge.stopNotificationMonitor();try{await api('/api/leave',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({id:deviceId})})}catch(_){}localStorage.removeItem('esharex_name');myName='';currentPeer=null;if(poller)clearInterval(poller);if(heartbeat)clearInterval(heartbeat);history.replaceState({},'','/');route();$('joinName').value='';toast('You have logged out')}
-async function showServerInfo(){try{let s=await api('/api/server-info');serverAddress=s.address;$('serverAddress').textContent=s.address;$('serverQrImage').src='/api/qr?text='+encodeURIComponent(s.address);$('serverQrImage').onerror=()=>{$('serverQr').style.display='none'};$('serverQr').style.display='flex';$('infoModal').classList.add('show')}catch(_){toast('Server information unavailable')}}
+async function showServerInfo(){$('moreMenu').classList.remove('show');$('infoModal').classList.remove('show');try{let s=await api('/api/server-info');serverAddress=s.address;$('serverAddress').textContent=s.address;$('serverQrImage').src='/api/qr?text='+encodeURIComponent(s.address);$('serverQrImage').onerror=()=>{$('serverQr').style.display='none'};$('serverQr').style.display='flex';$('infoModal').classList.add('show')}catch(_){toast('Server information unavailable')}}
 function hideInfo(){$('infoModal').classList.remove('show')}async function copyAddress(){try{if(isNative&&window.AndroidBridge?.copyText)window.AndroidBridge.copyText(serverAddress);else await copyTextToClipboard(serverAddress);toast('Address copied')}catch(_){toast(serverAddress)}}
 async function copyHomeIp(){if(!serverAddress)await loadLandingConnection();if(!serverAddress)return toast('Connect to Wi-Fi or turn on your hotspot first');try{if(isNative&&window.AndroidBridge?.copyText)window.AndroidBridge.copyText(serverAddress);else await copyTextToClipboard(serverAddress);toast('Address copied')}catch(_){toast('Could not copy address')}}
 async function requestNotificationPermission(){try{if(isNative&&window.AndroidBridge){window.AndroidBridge.requestNotifications();return}if('Notification'in window&&Notification.permission==='default')await Notification.requestPermission()}catch(_){}}
 async function shareApp(){let url=location.origin+'/';try{if(isNative){const info=await api('/api/server-info');url=info.address;if(window.AndroidBridge&&window.AndroidBridge.shareLink){window.AndroidBridge.shareLink(url);return}}if(navigator.share){await navigator.share({title:'eShareX',text:'Join me on eShareX local sharing',url})}else{await copyTextToClipboard(url);toast('Share link copied')}}catch(_){toast('Could not open sharing options')}}
 window.openNotificationConversation=function(peerId,peerName){if(peerId){openDM({id:peerId,name:peerName||'Private chat'})}else{if(currentPeer)closeDM();go('/chat')}};
-async function enableNotifications(){if(isNative){requestNotificationPermission();toast('Allow eShareX notifications in Android settings if prompted');return}if(!('Notification'in window))return toast('This browser does not support notifications');if(!window.isSecureContext&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1')return toast('Browser notifications require HTTPS. Android app notifications are available in the eShareX app.');if(Notification.permission==='granted')return toast('Notifications are already enabled');const result=await Notification.requestPermission();toast(result==='granted'?'Notifications enabled': 'Notifications were not enabled')}
 function downloadSharedFile(url,filename){if(!url)return toast('File link unavailable');const a=document.createElement('a');a.href=url;a.download=(filename||'esharex-download').replace(/[\\/\0]/g,'_');a.rel='noopener';document.body.appendChild(a);a.click();a.remove();toast('Download started')}
 function closeMedia(){const modal=$('mediaModal');const video=modal.querySelector('video');if(video){try{video.pause()}catch(_){}}modal.classList.remove('show');$('mediaContent').innerHTML=''}
 function openMedia(type,url,filename){const box=$('mediaContent');box.innerHTML='';const name=document.createElement('strong');name.className='media-preview-filename';name.textContent=filename||'Media preview';const stage=document.createElement('div');stage.className='media-preview-stage';const el=document.createElement(type);el.src=url;el.alt=filename||'Shared media';if(type==='video'){el.controls=true;el.autoplay=false;el.playsInline=true}else el.loading='eager';el.className='media-preview-element';stage.appendChild(el);const actions=document.createElement('div');actions.className='media-preview-actions';const download=document.createElement('button');download.type='button';download.className='btn media-download';download.textContent='↓ Download';download.onclick=()=>downloadSharedFile(url,filename||'esharex-media');const close=document.createElement('button');close.type='button';close.className='btn secondary media-close';close.textContent='Close';close.onclick=closeMedia;actions.append(download,close);box.append(name,stage,actions);$('mediaModal').classList.add('show')}
@@ -861,3 +889,22 @@ body.keyboard-open .footer{display:none!important}
 
 </body>
 </html>
+
+<style id="esharex-261-final-layout-fixes">
+/* 2.6.1: hard caps and intrinsic-width image/caption alignment */
+.menu{z-index:1250;max-height:min(75dvh,560px);overflow:auto}
+#infoModal{z-index:1400}
+.menu button{min-height:42px}
+.bubble.image-message{display:block!important;box-sizing:border-box!important;min-width:0!important;width:max-content;max-width:min(68vw,436px)!important;padding:7px!important;overflow:hidden!important}
+.bubble.image-message>img{display:block!important;max-width:100%!important;max-height:300px!important;width:auto;height:auto;object-fit:contain;margin:0 auto!important}
+.bubble.image-message .media-caption{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important;word-break:break-word!important;line-height:1.38!important;margin:6px 0 0!important}
+.bubble:not(.image-message){font-size:13px!important;line-height:1.38!important;padding:8px 10px!important}
+.message-text{font-size:13px!important;line-height:1.38!important;overflow-wrap:anywhere}
+@media(max-width:600px){
+ .bubble.image-message{max-width:calc(min(68vw,260px) + 16px)!important}
+ .bubble.image-message>img{max-height:210px!important}
+ .bubble:not(.image-message){font-size:12.5px!important;padding:7px 9px!important}
+ .message-text{font-size:12.5px!important}
+}
+@media(min-width:601px){.bubble.image-message{max-width:calc(min(52vw,420px) + 16px)!important}}
+</style>
