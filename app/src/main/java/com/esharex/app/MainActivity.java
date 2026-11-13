@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.net.wifi.WifiManager;
+import android.net.DhcpInfo;
 import android.content.Context;
 import androidx.core.content.ContextCompat;
 import java.util.UUID;
@@ -29,6 +30,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
@@ -54,28 +58,43 @@ public class MainActivity extends Activity {
     private boolean autoJoinStarted = false;
     private int autoJoinAttempts = 0;
     private static final String SERVICE_TYPE = "_esharex._tcp.";
+    private final Runnable pairedDiscoveryRefresh = new Runnable() {
+        @Override public void run() {
+            String paired = getSharedPreferences("esharex_connection", MODE_PRIVATE).getString("paired_host_id", "");
+            if (paired.isEmpty() || isFinishing()) return;
+            stopDiscovery(); autoJoinStarted = false; beginDiscovery();
+            handler.postDelayed(this, 20000L);
+        }
+    };
     private final Runnable autoJoinTask = new Runnable() {
         @Override public void run() {
             if (isFinishing() || discoveryListener == null || autoJoinStarted) return;
             NsdServiceInfo candidate = null;
             String localName = getLocalServiceName();
+            String pairedHostId = getSharedPreferences("esharex_connection", MODE_PRIVATE).getString("paired_host_id", "");
+            String pairedService = pairedHostId.isEmpty() ? "" : serviceNameForId(pairedHostId);
             synchronized (nearby) {
                 for (NsdServiceInfo info : nearby.values()) {
                     if (info.getServiceName() == null || info.getHost() == null) continue;
                     String host = info.getHost().getHostAddress();
                     if (host == null || !host.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")) continue;
-                    if (info.getServiceName().compareTo(localName) < 0 &&
-                        (candidate == null || info.getServiceName().compareTo(candidate.getServiceName()) < 0)) {
-                        candidate = info;
+                    boolean matchesPaired = !pairedService.isEmpty() && pairedService.equals(info.getServiceName());
+                    boolean elected = pairedService.isEmpty() && info.getServiceName().compareTo(localName) < 0;
+                    if (matchesPaired || elected) {
+                        if (candidate == null || info.getServiceName().compareTo(candidate.getServiceName()) < 0) candidate = info;
                     }
                 }
             }
-            if (candidate == null) return; // This device is the elected host.
+            if (candidate == null) {
+                if (autoJoinAttempts < 30) handler.postDelayed(autoJoinTask, 2000L);
+                return;
+            }
             final String host = candidate.getHost().getHostAddress();
             final int port = candidate.getPort();
             autoJoinAttempts++;
             executor.execute(() -> {
                 boolean healthy = false;
+                String discoveredHostId = "";
                 HttpURLConnection connection = null;
                 try {
                     connection = (HttpURLConnection) new URL("http://" + host + ":" + port + "/api/health").openConnection();
@@ -83,16 +102,28 @@ public class MainActivity extends Activity {
                     connection.setReadTimeout(1800);
                     healthy = connection.getResponseCode() == 200;
                 } catch (Exception ignored) {
-                } finally {
-                    if (connection != null) connection.disconnect();
+                } finally { if (connection != null) connection.disconnect(); }
+                if (healthy) {
+                    try {
+                        connection = (HttpURLConnection) new URL("http://" + host + ":" + port + "/api/server-info").openConnection();
+                        connection.setConnectTimeout(1200); connection.setReadTimeout(1200);
+                        if (connection.getResponseCode() == 200) {
+                            java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(connection.getInputStream(), java.nio.charset.StandardCharsets.UTF_8));
+                            StringBuilder body = new StringBuilder(); String line; while ((line = reader.readLine()) != null) body.append(line);
+                            discoveredHostId = new org.json.JSONObject(body.toString()).optString("deviceId", "");
+                        }
+                    } catch (Exception ignored) {
+                    } finally { if (connection != null) connection.disconnect(); }
                 }
                 final boolean ready = healthy;
+                final String hostId = discoveredHostId;
                 handler.post(() -> {
                     if (isFinishing() || discoveryListener == null || autoJoinStarted) return;
                     if (ready) {
                         autoJoinStarted = true;
+                        if (!hostId.isEmpty()) getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().putString("paired_host_id", hostId).apply();
                         joinNearbyUrl("http://" + host + ":" + port + "/");
-                    } else if (autoJoinAttempts < 6) {
+                    } else if (autoJoinAttempts < 30) {
                         handler.postDelayed(autoJoinTask, 1800L);
                     }
                 });
@@ -296,6 +327,36 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public boolean isHosting() {
+            return HOME_URL.equals(homeUrl) && !getSharedPreferences("esharex_connection", MODE_PRIVATE).contains("paired_host_id");
+        }
+
+        @JavascriptInterface
+        public String getPairCode() {
+            android.content.SharedPreferences prefs = getSharedPreferences("esharex_pairing", MODE_PRIVATE);
+            String code = prefs.getString("pair_code", "");
+            long created = prefs.getLong("pair_created", 0L);
+            if (code.isEmpty() || System.currentTimeMillis() - created > 30L * 60L * 1000L) {
+                code = String.format(java.util.Locale.US, "%04d", new java.security.SecureRandom().nextInt(10000));
+                prefs.edit().putString("pair_code", code).putLong("pair_created", System.currentTimeMillis()).apply();
+            }
+            return code;
+        }
+
+        @JavascriptInterface
+        public void pairWithCode(String code) {
+            String clean = code == null ? "" : code.replaceAll("[^0-9]", "");
+            if (!clean.matches("[0-9]{4}")) { notifyPairResult(false, "Enter a valid four-digit code."); return; }
+            scanForPairCode(clean);
+        }
+
+        @JavascriptInterface
+        public void disconnectPairedHost() {
+            getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().remove("paired_host_id").remove("connected_url").apply();
+            runOnUiThread(() -> { stopDiscovery(); stopService(new Intent(MainActivity.this, ShareServerService.class)); finish(); });
+        }
+
+        @JavascriptInterface
         public void configureNotificationMonitor(String baseUrl, String userId, String userName) {
             if (baseUrl == null || userId == null || !baseUrl.matches("https?://[A-Za-z0-9.\\-]+(:[0-9]{1,5})?")) return;
             Intent monitor = new Intent(MainActivity.this, ShareServerService.class);
@@ -380,16 +441,70 @@ public class MainActivity extends Activity {
         }
     }
 
-    private String getLocalServiceName() {
-        String clean = getStableDeviceId().replaceAll("[^A-Za-z0-9]", "");
-        String suffix = clean.substring(Math.max(0, clean.length() - 12));
-        return "eShareX-" + suffix;
+    private String serviceNameForId(String id) {
+        String clean = id == null ? "" : id.replaceAll("[^A-Za-z0-9]", "");
+        return "eShareX-" + clean.substring(Math.max(0, clean.length() - 12));
+    }
+
+    private String getLocalServiceName() { return serviceNameForId(getStableDeviceId()); }
+
+    private void notifyPairResult(boolean ok, String message) {
+        if (webView == null) return;
+        String js = "window.onPairResult && window.onPairResult(" + ok + "," + org.json.JSONObject.quote(message) + ")";
+        runOnUiThread(() -> { if (webView != null) webView.evaluateJavascript(js, null); });
+    }
+
+    private void scanForPairCode(String code) {
+        executor.execute(() -> {
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            DhcpInfo dhcp = wifi == null ? null : wifi.getDhcpInfo();
+            if (dhcp == null || dhcp.ipAddress == 0) { notifyPairResult(false, "Connect to the host's Wi-Fi network first."); return; }
+            int ip = dhcp.ipAddress;
+            String local = String.format(java.util.Locale.US, "%d.%d.%d.%d", ip & 255, (ip >> 8) & 255, (ip >> 16) & 255, (ip >> 24) & 255);
+            String[] parts = local.split("\\.");
+            if (parts.length != 4) { notifyPairResult(false, "Could not detect the Wi-Fi network."); return; }
+            String prefix = parts[0] + "." + parts[1] + "." + parts[2] + ".";
+            AtomicReference<String> foundUrl = new AtomicReference<>(null);
+            AtomicReference<String> foundId = new AtomicReference<>(null);
+            CountDownLatch latch = new CountDownLatch(254);
+            ExecutorService workers = Executors.newFixedThreadPool(24);
+            for (int i = 1; i <= 254; i++) {
+                final String host = prefix + i;
+                if (host.equals(local)) { latch.countDown(); continue; }
+                workers.execute(() -> {
+                    HttpURLConnection c = null;
+                    try {
+                        c = (HttpURLConnection) new URL("http://" + host + ":8080/api/pair/info?code=" + code).openConnection();
+                        c.setConnectTimeout(350); c.setReadTimeout(350);
+                        if (c.getResponseCode() == 200) {
+                            java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(c.getInputStream(), java.nio.charset.StandardCharsets.UTF_8));
+                            StringBuilder body = new StringBuilder(); String line;
+                            while ((line = reader.readLine()) != null) body.append(line);
+                            org.json.JSONObject data = new org.json.JSONObject(body.toString());
+                            String id = data.optString("deviceId", "");
+                            if (!id.isEmpty() && foundUrl.compareAndSet(null, "http://" + host + ":8080/")) foundId.set(id);
+                        }
+                    } catch (Exception ignored) {
+                    } finally { if (c != null) c.disconnect(); latch.countDown(); }
+                });
+            }
+            try { latch.await(14, TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            workers.shutdownNow();
+            String target = foundUrl.get(); String hostId = foundId.get();
+            if (target != null && hostId != null) {
+                getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().putString("paired_host_id", hostId).apply();
+                handler.post(() -> { notifyPairResult(true, "Host found. Connecting…"); joinNearbyUrl(target); });
+            } else notifyPairResult(false, "No matching host found. Check the code and make sure both phones are on the same Wi-Fi.");
+        });
     }
 
     private void joinNearbyUrl(String url) {
         if (url == null || !url.matches("http://[0-9.]+:8080/?") || webView == null) return;
-        stopDiscovery();
-        homeUrl = url.endsWith("/") ? url : url + "/";
+        String normalized = url.endsWith("/") ? url : url + "/";
+        boolean paired = !getSharedPreferences("esharex_connection", MODE_PRIVATE).getString("paired_host_id", "").isEmpty();
+        if (!paired) stopDiscovery();
+        if (normalized.equals(homeUrl) && pageRequested) { autoJoinStarted = true; return; }
+        homeUrl = normalized;
         getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().putString("connected_url", homeUrl).apply();
         stopService(new Intent(MainActivity.this, ShareServerService.class));
         pageRequested = true;
@@ -397,8 +512,9 @@ public class MainActivity extends Activity {
     }
 
     private void beginDiscovery() {
-        // A device already attached to a room must not elect or switch to another host.
-        if (!HOME_URL.equals(homeUrl) || nsdManager == null || discoveryListener != null) return;
+        // A paired receiver keeps discovering its saved host so it can follow DHCP/IP changes.
+        String pairedHostId = getSharedPreferences("esharex_connection", MODE_PRIVATE).getString("paired_host_id", "");
+        if ((!HOME_URL.equals(homeUrl) && pairedHostId.isEmpty()) || nsdManager == null || discoveryListener != null) return;
         nearby.clear();
         autoJoinStarted = false;
         autoJoinAttempts = 0;
@@ -427,8 +543,10 @@ public class MainActivity extends Activity {
                             if (!host.isEmpty() && !host.equals("127.0.0.1")) {
                                 synchronized (nearby) { nearby.put(info.getServiceName(), info); }
                                 publishNearby();
+                                String pairedId = getSharedPreferences("esharex_connection", MODE_PRIVATE).getString("paired_host_id", "");
+                                if (!pairedId.isEmpty() && serviceNameForId(pairedId).equals(info.getServiceName())) autoJoinStarted = false;
                                 handler.removeCallbacks(autoJoinTask);
-                                handler.postDelayed(autoJoinTask, 2500L);
+                                handler.postDelayed(autoJoinTask, 1200L);
                             }
                         }
                     });
@@ -450,7 +568,10 @@ public class MainActivity extends Activity {
                 stopDiscovery();
             }
         };
-        try { nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener); }
+        try {
+            nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
+            if (!pairedHostId.isEmpty()) { handler.removeCallbacks(pairedDiscoveryRefresh); handler.postDelayed(pairedDiscoveryRefresh, 20000L); }
+        }
         catch (Exception error) {
             android.util.Log.e("eShareX", "Could not start NSD discovery", error);
             discoveryListener = null;
@@ -515,7 +636,9 @@ public class MainActivity extends Activity {
                     pageRequested = true;
                     webView.loadUrl(homeUrl);
                 } else if (!serverReady) {
-                    handler.postDelayed(this::waitForServerAndLoad, 500);
+                    String paired = getSharedPreferences("esharex_connection", MODE_PRIVATE).getString("paired_host_id", "");
+                    if (!paired.isEmpty() && discoveryListener == null) beginDiscovery();
+                    handler.postDelayed(this::waitForServerAndLoad, 1800);
                 }
             });
         });

@@ -1,20 +1,22 @@
-# eShareX 2.6.3
+# eShareX 2.7.1
 
-## 2.6.3 identity and continuity update
+Android-native local sharing app with an embedded NanoHTTPD server and a shared web interface.
 
-- Uses a stable account ID derived from the normalized username, so the same username reconnects consistently even when a browser reaches the server through a different local IP/origin.
-- Migrates legacy duplicate rows for the same normalized username to that stable ID and updates references in general messages, direct messages, and per-user read state.
-- Does not use IP address or browser origin as an identity key.
-- Keeps media-type icons, compact attachment cards, responsive image bounds, caption wrapping, and composer-aware latest-message controls from 2.6.2.
-- Android version 2.6.3 / versionCode 31; health endpoint and PWA cache version updated.
+## 2.7.1 changes
 
-## Identity limitation
+- Adds temporary four-digit Android-to-Android LAN pairing as a fallback to NSD discovery.
+- Stores the paired host's stable Android device ID and periodically rediscovers that host to follow LAN IP changes.
+- Keeps the host as the single source of truth for Friends, General Group, private messages and uploads.
+- Updates Friends cards in place rather than rebuilding the entire list during each poll.
+- Prevents overlapping message/user refreshes and slows background polling while skipping hidden tabs.
+- Scrolls the newly uploaded image into view when the conversation was already at the bottom, including after the image finishes loading.
 
-This build intentionally uses username-only identity because no PIN or password was requested. Usernames are case-insensitive and Unicode-normalized. Two different people choosing the same username will share one account identity, including its direct-message identity. This is not authentication and should only be used on a trusted local network. A secure distinction between people with identical usernames requires an additional credential or account identifier.
+## Build
 
+Use the repository's GitHub Actions workflow to build the signed Android APK. Local Android SDK/Gradle setup is required for a local build.
 
-## 2.7.0 Android local-network auto-join
+## LAN limitations
 
-Android devices advertise the eShareX service over DNS-SD and discover peers on the same Wi-Fi/LAN. A deterministic service-name election selects the lexicographically lowest discovered Android service as the room host. Other Android devices automatically join that host after checking `/api/health`. The elected host keeps its local server running; joining devices use that host's Friends list and General Group, so messages are stored in one shared room. Discovery now acquires a Wi-Fi multicast lock while active and logs NSD resolution/start failures for diagnosis.
+The four-digit pairing fallback scans the local IPv4 /24 subnet for a matching eShareX server on port 8080. Both devices must be reachable on the same LAN. Router client isolation, VPNs, VLANs, blocked ports or unusual subnet masks can prevent discovery. The host must remain online; there is no host failover or cross-network relay.
 
-The elected host must remain online for the shared room to remain available. Automatic host failover and cross-subnet/internet discovery are not implemented in this release. Web clients can continue joining the elected host using its local address.
+See [LAN-TESTING.md](LAN-TESTING.md) for the two-device test plan.

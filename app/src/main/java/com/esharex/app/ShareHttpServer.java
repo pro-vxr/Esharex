@@ -49,10 +49,12 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.6.3"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.7.1"));
+            if ("/api/pair/info".equals(uri) && Method.GET.equals(method)) return pairInfo(session);
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
-                return json(new JSONObject().put("ip", ip).put("port", 8080).put("available", !"127.0.0.1".equals(ip)).put("address", "http://" + ip + ":8080"));
+                String deviceId = context.getSharedPreferences("esharex_identity", Context.MODE_PRIVATE).getString("device_id", "");
+                return json(new JSONObject().put("ip", ip).put("port", 8080).put("available", !"127.0.0.1".equals(ip)).put("address", "http://" + ip + ":8080").put("deviceId", deviceId));
             }
             if ("/api/qr".equals(uri) && Method.GET.equals(method)) return qrCode(session);
             if ("/api/register".equals(uri) && Method.POST.equals(method)) return register(session);
@@ -76,6 +78,19 @@ public class ShareHttpServer extends NanoHTTPD {
             if (uri.matches("/[A-Za-z0-9._/-]+") && !uri.contains("..")) return asset(uri.substring(1), mimeFor(uri));
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found");
         } catch (Exception e) { return jsonError(Response.Status.INTERNAL_ERROR, e.getMessage()); }
+    }
+
+
+    private Response pairInfo(IHTTPSession session) throws Exception {
+        android.content.SharedPreferences prefs = context.getSharedPreferences("esharex_pairing", Context.MODE_PRIVATE);
+        String supplied = session.getParms().getOrDefault("code", "");
+        String expected = prefs.getString("pair_code", "");
+        long created = prefs.getLong("pair_created", 0L);
+        boolean valid = !expected.isEmpty() && expected.equals(supplied) &&
+            System.currentTimeMillis() - created <= 30L * 60L * 1000L;
+        if (!valid) return jsonError(Response.Status.FORBIDDEN, "Pairing code is invalid or expired");
+        String deviceId = context.getSharedPreferences("esharex_identity", Context.MODE_PRIVATE).getString("device_id", "");
+        return json(new JSONObject().put("ok", true).put("deviceId", deviceId).put("name", "eShareX host"));
     }
 
     private JSONObject readBody(IHTTPSession session) throws Exception {

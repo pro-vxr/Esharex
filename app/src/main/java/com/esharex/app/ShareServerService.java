@@ -132,6 +132,13 @@ public class ShareServerService extends Service {
         try {
             File data = new File(getFilesDir(), "esharex");
             if (!data.exists()) data.mkdirs();
+            android.content.SharedPreferences pairPrefs = getSharedPreferences("esharex_pairing", MODE_PRIVATE);
+            String code = pairPrefs.getString("pair_code", "");
+            long created = pairPrefs.getLong("pair_created", 0L);
+            if (code.isEmpty() || System.currentTimeMillis() - created > 30L * 60L * 1000L) {
+                code = String.format(java.util.Locale.US, "%04d", new java.security.SecureRandom().nextInt(10000));
+                pairPrefs.edit().putString("pair_code", code).putLong("pair_created", System.currentTimeMillis()).apply();
+            }
             server = new ShareHttpServer(this, data);
             server.start();
             advertiseService();
@@ -220,12 +227,12 @@ public class ShareServerService extends Service {
         info.setPort(8080);
         registrationListener = new NsdManager.RegistrationListener() {
             @Override public void onServiceRegistered(NsdServiceInfo serviceInfo) {}
-            @Override public void onRegistrationFailed(NsdServiceInfo serviceInfo, int errorCode) {}
+            @Override public void onRegistrationFailed(NsdServiceInfo serviceInfo, int errorCode) { android.util.Log.e("eShareX", "NSD registration failed: " + errorCode); }
             @Override public void onServiceUnregistered(NsdServiceInfo serviceInfo) {}
-            @Override public void onUnregistrationFailed(NsdServiceInfo serviceInfo, int errorCode) {}
+            @Override public void onUnregistrationFailed(NsdServiceInfo serviceInfo, int errorCode) { android.util.Log.w("eShareX", "NSD unregistration failed: " + errorCode); }
         };
         try { nsdManager.registerService(info, NsdManager.PROTOCOL_DNS_SD, registrationListener); }
-        catch (Exception ignored) {}
+        catch (Exception error) { android.util.Log.e("eShareX", "Could not register LAN service", error); }
     }
 
     private void createChannels() {
