@@ -539,10 +539,27 @@ public class ShareHttpServer extends NanoHTTPD {
                     }
                     oldestJoin = Math.min(oldestJoin, candidate.optLong("joinedAt", oldestJoin));
                     newestSeen = Math.max(newestSeen, candidate.optLong("lastSeen", 0L));
+                }
+
+                // JSONObject.put() declares JSONException on Android. Keep every original
+                // record intact if the canonical update unexpectedly fails; never create
+                // aliases for records that were not successfully migrated.
+                try {
+                    canonical.put("id", stableId);
+                    canonical.put("joinedAt", oldestJoin);
+                    canonical.put("lastSeen", newestSeen);
+                } catch (org.json.JSONException migrationError) {
+                    for (JSONObject record : records) {
+                        String originalId = record.optString("id", "");
+                        if (!originalId.isEmpty()) preserved.put(originalId, record);
+                    }
+                    continue;
+                }
+
+                for (JSONObject candidate : records) {
                     String oldId = candidate.optString("id", "");
                     if (!oldId.isEmpty() && !oldId.equals(stableId)) aliases.put(oldId, stableId);
                 }
-                canonical.put("id", stableId).put("joinedAt", oldestJoin).put("lastSeen", newestSeen);
                 preserved.put(stableId, canonical);
             }
 
