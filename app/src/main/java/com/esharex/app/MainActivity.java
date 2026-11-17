@@ -179,6 +179,14 @@ public class MainActivity extends Activity {
         webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
             try {
                 String filename = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimeType);
+                if (contentDisposition != null) {
+                    java.util.regex.Matcher utf8Name = java.util.regex.Pattern.compile("filename\\*=UTF-8''([^;]+)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(contentDisposition);
+                    java.util.regex.Matcher plainName = java.util.regex.Pattern.compile("filename=\\\"?([^;\\\"]+)\\\"?", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(contentDisposition);
+                    try {
+                        if (utf8Name.find()) filename = java.net.URLDecoder.decode(utf8Name.group(1).trim(), "UTF-8");
+                        else if (plainName.find()) filename = plainName.group(1).trim();
+                    } catch (Exception ignored) { }
+                }
                 filename = filename == null ? "esharex-download" : filename.replace("/", "_").replace("\\", "_").replaceAll("\\p{Cntrl}", "_");
                 DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                 request.setTitle(filename);
