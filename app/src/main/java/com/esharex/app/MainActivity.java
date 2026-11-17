@@ -211,6 +211,9 @@ public class MainActivity extends Activity {
                 Intent intent;
                 try {
                     intent = params.createIntent();
+                    if (params.getMode() == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+                        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                    }
                     startActivityForResult(intent, FILE_REQUEST);
                 } catch (RuntimeException error) {
                     fileCallback = null;
@@ -667,6 +670,11 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == FILE_REQUEST && fileCallback != null) {
             Uri[] result = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+            if (resultCode == RESULT_OK && data != null && data.getClipData() != null) {
+                android.content.ClipData clip = data.getClipData();
+                result = new Uri[clip.getItemCount()];
+                for (int i = 0; i < clip.getItemCount(); i++) result[i] = clip.getItemAt(i).getUri();
+            }
             fileCallback.onReceiveValue(result);
             fileCallback = null;
         }
