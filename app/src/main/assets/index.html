@@ -604,7 +604,7 @@ function renderMessage(m,container,mine){
  row.addEventListener('touchstart',e=>{window.__esharexLastTouchAt=Date.now();if(e.target.closest('button,a,input,textarea,video'))return;const t=e.touches[0];pressStart={x:t.clientX,y:t.clientY};pressMoved=false;pressTimer=setTimeout(()=>{if(!pressMoved){row.dataset.longPressed='1';enterMessageSelection(row,m);if(navigator.vibrate)navigator.vibrate(25)}},520)},{passive:true});
  row.addEventListener('touchmove',e=>{if(!pressStart)return;const t=e.touches[0];if(Math.abs(t.clientX-pressStart.x)>12||Math.abs(t.clientY-pressStart.y)>12){pressMoved=true;clearTimeout(pressTimer)}},{passive:true});
  row.addEventListener('touchend',()=>{clearTimeout(pressTimer);pressStart=null},{passive:true});
- let touchX=0,touchY=0,touchStarted=false;row.addEventListener('touchstart',e=>{const t=e.changedTouches[0];if(e.target.closest('button,a,input,textarea')){touchStarted=false;return}touchX=t.clientX;touchY=t.clientY;touchStarted=true},{passive:true,capture:true});row.addEventListener('touchend',e=>{if(!touchStarted)return;touchStarted=false;const t=e.changedTouches[0],dx=t.clientX-touchX,dy=t.clientY-touchY;if(dx>75&&dx>Math.abs(dy)*1.35)setReplyTarget(m)},{passive:true,capture:true});
+ let touchX=0,touchY=0,touchStarted=false;row.addEventListener('touchstart',e=>{const t=e.changedTouches[0];if(e.target.closest('button,input,textarea,video')){touchStarted=false;return}touchX=t.clientX;touchY=t.clientY;touchStarted=true},{passive:true,capture:true});row.addEventListener('touchend',e=>{if(!touchStarted)return;touchStarted=false;const t=e.changedTouches[0],dx=t.clientX-touchX,dy=t.clientY-touchY;if(dx>48&&dx>Math.abs(dy)*1.2){e.preventDefault();setReplyTarget(m)}},{passive:false,capture:true});
  container.appendChild(row);
 }
 function mediaIconSvg(mime,name){const n=(name||'').toLowerCase(),m=(mime||'').toLowerCase();let path='<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>';
@@ -980,6 +980,14 @@ body.keyboard-open .footer{display:none!important}
 .filecard .filecard-name{grid-column:1/-1!important;grid-row:1!important;width:auto!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important}
 .filecard .filecard-download-text{grid-column:2!important;grid-row:2!important;justify-self:end!important;align-self:end!important}
 .upload-overview{font-size:11px;color:var(--muted);margin:-3px 0 7px}
+.upload-tray{top:170px;bottom:auto;max-height:30vh}
+.filecard .filecard-icon{display:flex!important;grid-column:1!important;grid-row:1!important;width:22px!important;flex-basis:22px!important;color:var(--accent)!important}
+.filecard .filecard-name{grid-column:2!important;grid-row:1!important;width:auto!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;overflow-wrap:normal!important;word-break:normal!important}
+.filecard .filecard-download-text{grid-column:2!important;grid-row:2!important;justify-self:end!important}
+.video-message-wrap{width:fit-content!important;height:auto!important;max-width:min(52vw,420px)!important;aspect-ratio:auto!important;background:transparent!important;border:0!important;padding:0!important}
+.video-message-wrap video,.video-message-poster{width:auto!important;height:auto!important;max-width:min(52vw,420px)!important;max-height:280px!important;object-fit:contain!important;background:transparent!important}
+.video-message-poster{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain!important}
+@media(max-width:600px){.upload-tray{top:132px;right:8px;max-height:34vh}.video-message-wrap{max-width:78vw!important}.video-message-wrap video,.video-message-poster{max-width:78vw!important;max-height:230px!important}}
 </style>
 
 </body>
