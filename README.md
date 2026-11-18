@@ -1,6 +1,12 @@
-# eShareX 2.8.3
+# eShareX 2.8.4
 
 Android-native local sharing app with an embedded NanoHTTPD server and a shared web interface.
+
+## 2.8.4 changes
+
+- Message field: the background bar behind the field and send button is gone, so they float; the field keeps its original rounded box.
+- Video bubbles are sized directly from the video's shape (about 250px landscape / 170px portrait on desktop, smaller on phones).
+- Documents: icon on the left (vertically centred), then a dark box with the filename and extension on top and Download at the bottom right.
 
 ## 2.8.3 changes
 
