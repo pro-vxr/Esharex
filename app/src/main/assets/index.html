@@ -424,7 +424,7 @@ body.composer-focused .scroll-latest{opacity:0!important;visibility:hidden!impor
  <div class="chat-context">
   <span class="context-icon">◉</span>
   <div class="context-title"><strong id="conversationName">General chat</strong><small id="chatOnline">0 online</small></div>
-  <div class="upload-slot" id="uploadTray" aria-live="polite" hidden><div class="upload-card" id="uploadCard"><div class="upload-card-thumb" id="uploadThumb"></div><div class="upload-card-info"><div class="upload-card-name" id="uploadName"><span class="un-base"></span><span class="un-ext"></span></div><div class="upload-card-status" id="uploadStatus"></div></div><div class="upload-card-bar"><span id="uploadBar"></span></div></div></div>
+  <div class="upload-slot" id="uploadTray" aria-live="polite" hidden><div class="upload-card" id="uploadCard"><div class="upload-card-thumb" id="uploadThumb"></div><div class="upload-card-info"><div class="upload-card-name" id="uploadName"><span class="un-base"></span><span class="un-ext"></span></div><div class="upload-card-bar"><span id="uploadBar"></span></div><div class="upload-card-status" id="uploadStatus"></div></div></div></div>
   <button class="iconbtn" aria-label="Message actions" onclick="toggleChatActionsMenu()">⋮</button>
  </div>
  <div class="chat-actions-menu" id="chatActionsMenu" hidden>
@@ -588,7 +588,7 @@ function renderMessage(m,container,mine){
    im.src=m.url;
    if(im.complete&&im.naturalWidth)fitImageMessage(im);
   }
-  else if((m.mime||'').startsWith('video/')){b.classList.add('media-bubble','video-bubble');const videoWrap=document.createElement('div');videoWrap.className='video-message-wrap';videoWrap.setAttribute('role','button');videoWrap.setAttribute('tabindex','0');videoWrap.setAttribute('aria-label','Preview video '+(m.filename||''));const poster=document.createElement('img');poster.className='video-message-poster';poster.alt='';poster.hidden=true;const v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='none';v.setAttribute('aria-hidden','true');const play=document.createElement('span');play.className='video-preview-play';play.setAttribute('aria-hidden','true');play.textContent='▶';videoWrap._load=()=>{if(v.dataset.loaded)return;v.dataset.loaded='1';v.preload='metadata';v.addEventListener('loadedmetadata',()=>{if(v.videoWidth&&v.videoHeight){videoWrap.style.aspectRatio=v.videoWidth+'/'+v.videoHeight;if(v.videoHeight>v.videoWidth*1.1)b.classList.add('portrait')}},{once:true});v.addEventListener('loadeddata',()=>{try{const scale=Math.min(1,360/Math.max(1,v.videoWidth));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(v.videoWidth*scale));canvas.height=Math.max(1,Math.round(v.videoHeight*scale));canvas.getContext('2d').drawImage(v,0,0,canvas.width,canvas.height);poster.src=canvas.toDataURL('image/jpeg',.72);poster.hidden=false;v.style.display='none';v.removeAttribute('src');v.load()}catch(_){}},{once:true});v.src=m.url+'#t=0.1'};const showPreview=()=>openMedia('video',m.url,m.filename);videoWrap.addEventListener('click',showPreview);videoWrap.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showPreview()}});videoWrap.append(v,poster,play);lazyVideoThumb(videoWrap);b.appendChild(videoWrap)}
+  else if((m.mime||'').startsWith('video/')){b.classList.add('media-bubble','video-bubble');const videoWrap=document.createElement('div');videoWrap.className='video-message-wrap';videoWrap.setAttribute('role','button');videoWrap.setAttribute('tabindex','0');videoWrap.setAttribute('aria-label','Preview video '+(m.filename||''));const poster=document.createElement('img');poster.className='video-message-poster';poster.alt='';poster.hidden=true;const v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='none';v.setAttribute('aria-hidden','true');const play=document.createElement('span');play.className='video-preview-play';play.setAttribute('aria-hidden','true');play.textContent='▶';videoWrap._load=()=>{if(v.dataset.loaded)return;v.dataset.loaded='1';v.preload='metadata';let tries=0;v.addEventListener('loadedmetadata',()=>{if(v.videoWidth&&v.videoHeight){videoWrap.style.aspectRatio=v.videoWidth+'/'+v.videoHeight;if(v.videoHeight>v.videoWidth*1.1)b.classList.add('portrait')}try{v.currentTime=Math.min(1,Math.max(.05,(v.duration||1)*.1))}catch(_){}},{once:true});v.addEventListener('seeked',()=>{if(!poster.hidden)return;try{const sc=Math.min(1,360/Math.max(1,v.videoWidth));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(v.videoWidth*sc));c.height=Math.max(1,Math.round(v.videoHeight*sc));c.getContext('2d').drawImage(v,0,0,c.width,c.height);const t=document.createElement('canvas');t.width=t.height=12;const tc=t.getContext('2d');tc.drawImage(c,0,0,12,12);const px=tc.getImageData(0,0,12,12).data;let sum=0;for(let i=0;i<px.length;i+=4)sum+=px[i]*.3+px[i+1]*.59+px[i+2]*.11;if(sum/(px.length/4)<12&&tries<2&&v.duration>1){tries++;v.currentTime=v.duration*(tries===1?.4:.75);return}poster.src=c.toDataURL('image/jpeg',.72);poster.hidden=false;v.style.display='none';v.removeAttribute('src');v.load()}catch(_){}});v.src=m.url};const showPreview=()=>openMedia('video',m.url,m.filename);videoWrap.addEventListener('click',showPreview);videoWrap.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showPreview()}});videoWrap.append(v,poster,play);lazyVideoThumb(videoWrap);b.appendChild(videoWrap)}
   else{const link=document.createElement('a');link.className='filecard';link.href=m.url;link.download=m.filename||'download';link.setAttribute('aria-label','Download '+(m.filename||'file'));const icon=document.createElement('span');icon.className='filecard-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML=mediaIconSvg(m.mime,m.filename);const meta=document.createElement('span');meta.className='filecard-name';meta.textContent=m.filename||'Download file';const action=document.createElement('span');action.className='filecard-download-text';action.textContent='Download';link.append(icon,meta,action);b.classList.add('file-bubble');b.appendChild(link)}
   if(m.caption){const c=document.createElement('div');c.className='media-caption';c.textContent=m.caption;b.appendChild(c)}
  }else{const t=document.createElement('div');t.className='message-text';t.textContent=m.text||'';b.appendChild(t)}
@@ -1011,22 +1011,38 @@ body.keyboard-open .footer{display:none!important}
 .bubble.image-message>img{border-radius:0!important;margin:0!important}
 .bubble.image-message>img:not(.loaded){min-width:150px;min-height:110px;background:#0b1119}
 .chat-context .context-title{min-width:84px}
-.upload-slot{flex:0 1 232px;min-width:116px;max-width:100%}
+/* sender name / quoted reply keep their padding inside one-surface bubbles */
+.bubble.media-bubble>.msgname{padding:8px 12px 5px!important;margin:0!important;display:block}
+.bubble.media-bubble>.quoted-message{margin:4px 10px 6px!important;max-width:calc(100% - 20px)}
+/* compact file card: name on top, Download directly below it (no far-right gap) */
+.bubble.file-bubble{width:fit-content!important;min-width:min(58vw,200px);max-width:min(74vw,300px)!important}
+.bubble.file-bubble .filecard{display:grid!important;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"icon name" "icon action";align-items:center;column-gap:11px;row-gap:3px;width:auto!important;padding:6px 14px 12px 12px!important}
+.bubble.file-bubble .filecard-icon{grid-area:icon;flex:none}
+.bubble.file-bubble .filecard-name{grid-area:name;min-width:0}
+.bubble.file-bubble .filecard-download-text{grid-area:action;justify-self:start;font-size:12px;font-weight:800;color:var(--accent)}
+.bubble.file-bubble .filecard-download-icon{display:none!important}
+/* no white focus box around the scrolling chat area */
+.messages,.messages:focus,.messages:focus-visible,#generalMessages:focus,#dmMessages:focus{outline:none!important}
+.msgrow:focus,.msgrow:focus-visible{outline:none}
+.video-message-wrap:focus{outline:none}.video-message-wrap:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+/* header upload card: same height as the header row, so the page never jumps while uploading */
+.upload-slot{flex:0 1 232px;min-width:120px;align-self:center;height:40px;position:relative}
 .upload-slot[hidden]{display:none!important}
-.upload-card{position:relative;display:flex;align-items:center;gap:8px;min-height:50px;padding:6px 8px 11px;background:#0d141d;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.upload-card{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:48px;display:flex;align-items:center;gap:8px;padding:5px 8px;background:#0d141d;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .upload-card.failed{border-color:#a14b4b}
 .upload-card-thumb{flex:0 0 34px;width:34px;height:34px;border-radius:8px;overflow:hidden;display:grid;place-items:center;background:#080b10;color:var(--accent)}
 .upload-card-thumb img,.upload-card-thumb video{width:100%;height:100%;object-fit:cover;display:block}
 .upload-card-thumb svg{width:20px;height:20px}
-.upload-card-info{flex:1;min-width:0;display:grid;gap:2px}
-.upload-card-name{display:flex;min-width:0;font-size:12px;font-weight:800;line-height:1.2}
+.upload-card-info{flex:1;min-width:0;display:grid;gap:3px}
+.upload-card-name{display:flex;min-width:0;font-size:12px;font-weight:800;line-height:1.15}
 .upload-card-name .un-base{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .upload-card-name .un-ext{flex:none;white-space:nowrap}
-.upload-card-status{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upload-card-bar{height:4px;border-radius:99px;background:#ffffff1a;overflow:hidden}
+.upload-card-bar span{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .15s linear}
+.upload-card-status{font-size:10.5px;line-height:1.1;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .upload-card.failed .upload-card-status{color:#ff8a8a}
-.upload-card-bar{position:absolute;left:0;right:0;bottom:0;height:4px;background:#ffffff14}
-.upload-card-bar span{display:block;height:100%;width:0;background:var(--accent);transition:width .15s linear}
-@media(max-width:420px){.upload-card{gap:6px;padding:5px 6px 10px}.upload-card-thumb{flex-basis:28px;width:28px;height:28px}.upload-card-name{font-size:11px}.upload-card-status{font-size:10px}}
+@media(min-width:851px){.upload-slot{flex-basis:300px}}
+@media(max-width:420px){.upload-card{gap:6px;padding:5px 6px}.upload-card-thumb{flex-basis:30px;width:30px;height:30px}.upload-card-name{font-size:11px}.upload-card-status{font-size:10px}}
 </style>
 
 </body>

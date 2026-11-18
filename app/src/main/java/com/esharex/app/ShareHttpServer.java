@@ -49,7 +49,7 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.8.1"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.8.2"));
             if ("/api/pair/info".equals(uri) && Method.GET.equals(method)) return pairInfo(session);
             if ("/api/pair/code".equals(uri) && Method.GET.equals(method)) return json(new JSONObject().put("code", PairingCode.get(context)));
             if ("/api/server-info".equals(uri)) {

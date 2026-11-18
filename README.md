@@ -1,6 +1,14 @@
-# eShareX 2.8.1
+# eShareX 2.8.2
 
 Android-native local sharing app with an embedded NanoHTTPD server and a shared web interface.
+
+## 2.8.2 changes
+
+- Upload card layout is now: preview, filename + extension, progress bar, then count and status. It matches the header row height, so the page no longer shifts down while uploading.
+- Sender names and quoted replies keep their padding inside media bubbles (they were clipped).
+- File cards are compact: the Download action sits under the filename instead of far to the right.
+- Removed the white focus rectangle that appeared around the chat when scrolling on desktop browsers.
+- Video thumbnails are captured after the seek and skip black frames, then release the decoder.
 
 ## 2.8.1 changes
 
