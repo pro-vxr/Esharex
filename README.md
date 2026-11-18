@@ -4,9 +4,9 @@ Android-native local sharing app with an embedded NanoHTTPD server and a shared 
 
 ## 2.8.4 changes
 
-- Message field: the background bar behind the field and send button is gone, so they float; the field keeps its original rounded box.
-- Video bubbles are sized directly from the video's shape (about 250px landscape / 170px portrait on desktop, smaller on phones).
-- Documents: icon on the left (vertically centred), then a dark box with the filename and extension on top and Download at the bottom right.
+- Chat: only the message list keeps a box. The message field and send button float underneath it with no surrounding panel, bar or divider.
+- Video bubbles use the same size limits as images, so portrait videos are short thumbnails instead of tall cards.
+- Documents: one dark box with the icon on the left (vertically centred), the filename and extension on top and Download at the bottom right.
 
 ## 2.8.3 changes
 
