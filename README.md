@@ -1,6 +1,12 @@
-# eShareX 2.8.2
+# eShareX 2.8.3
 
 Android-native local sharing app with an embedded NanoHTTPD server and a shared web interface.
+
+## 2.8.3 changes
+
+- Upload card: preview, filename, then the progress bar with count and status on the same line (e.g. `2/10 · 65%`).
+- Document messages have their dark inner card back, with the icon vertically centred and the Download link under the filename.
+- Smaller media on desktop (video and images), lighter font weights, sender name nudged left, and no box around the message text field.
 
 ## 2.8.2 changes
 
