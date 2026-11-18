@@ -628,7 +628,7 @@ function lazyVideoThumb(el){if(videoThumbObserver)videoThumbObserver.observe(el)
 function updateMessageList(data,box,mineFn,seen){
  const firstRender=box.dataset.initialized!=='1';
  const distanceFromBottom=box.scrollHeight-box.clientHeight-box.scrollTop;
- const wasNearBottom=distanceFromBottom<36;
+  const wasNearBottom=distanceFromBottom<72;
  if(!data.length){if(!box.children.length)box.innerHTML='<div class="empty">No messages yet. Start the conversation.</div>';box.dataset.initialized='1';return}
  const empty=box.querySelector('.empty');if(empty)empty.remove();
  const oldTop=box.scrollTop,oldHeight=box.scrollHeight;
@@ -642,12 +642,25 @@ function updateMessageList(data,box,mineFn,seen){
  // Remove records deleted on the server without rebuilding unchanged cards.
  existing.forEach(el=>el.remove());
  box.dataset.initialized='1';
- if(firstRender){box.scrollTop=box.scrollHeight;box.dataset.userReading='0'}
- else if(wasNearBottom&&box.dataset.userReading!=='1'){box.scrollTop=box.scrollHeight}
+  if(firstRender){box.scrollTop=box.scrollHeight;box.dataset.userReading='0'}
+  else if(wasNearBottom){box.scrollTop=box.scrollHeight;box.dataset.userReading='0'}
  else{const delta=box.scrollHeight-oldHeight;box.scrollTop=oldTop+Math.max(0,delta);box.dataset.userReading='1'}
+  ensureLatestMessageFollow(box);
 }
+ function ensureLatestMessageFollow(box){
+  if(!('ResizeObserver'in window)||box.__latestFollowObserver)return;
+  const resizeObserver=new ResizeObserver(()=>{if(box.dataset.userReading!=='1')box.scrollTop=box.scrollHeight});
+  const observeRow=node=>{if(node.nodeType===1){if(node.matches('.msgrow'))resizeObserver.observe(node);node.querySelectorAll?.('.msgrow').forEach(row=>resizeObserver.observe(row))}};
+  box.querySelectorAll(':scope > .msgrow').forEach(row=>resizeObserver.observe(row));
+  const mutationObserver=new MutationObserver(records=>records.forEach(record=>{
+   record.removedNodes.forEach(node=>{if(node.nodeType===1){if(node.matches('.msgrow'))resizeObserver.unobserve(node);node.querySelectorAll?.('.msgrow').forEach(row=>resizeObserver.unobserve(row))}});
+   record.addedNodes.forEach(observeRow);
+  }));
+  mutationObserver.observe(box,{childList:true});
+  box.__latestFollowObserver={resizeObserver,mutationObserver};
+ }
 // Keep polling from pulling the reader back to the newest message.
-['generalMessages','dmMessages'].forEach(id=>{const box=document.getElementById(id);if(!box)return;box.addEventListener('scroll',()=>{const gap=box.scrollHeight-box.clientHeight-box.scrollTop;const atBottom=gap<=36;box.dataset.userReading=atBottom?'0':'1';if(box.dataset.followAfterUpload==='1')box.dataset.uploadFollowActive=atBottom?'1':'0'},{passive:true})});
+ ['generalMessages','dmMessages'].forEach(id=>{const box=document.getElementById(id);if(!box)return;box.addEventListener('scroll',()=>{const gap=box.scrollHeight-box.clientHeight-box.scrollTop;const atBottom=gap<=72;box.dataset.userReading=atBottom?'0':'1';if(box.dataset.followAfterUpload==='1')box.dataset.uploadFollowActive=atBottom?'1':'0'},{passive:true})});
 let generalLoadBusy=false,peopleLoadBusy=false,peopleRefreshPending=false,dmLoadBusy=false,dmPendingPeerId="";
 async function loadGeneral(force=false){if(!myName||generalLoadBusy)return;generalLoadBusy=true;try{const data=await api('/api/messages');const box=$('generalMessages');updateMessageList(data,box,m=>m.userId===deviceId||m.username===myName,seenGeneral);if(location.pathname==='/chat'&&!currentPeer&&!document.hidden){const latest=data.reduce((n,m)=>Math.max(n,Number(m.timestamp)||0),0);markConversationRead(null,latest)}}catch(_){}finally{generalLoadBusy=false}}
 async function sendGeneral(){const text=$('generalInput').value.replace(/\r\n?/g,'\n').trim();if(!text)return;try{await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({text,userId:deviceId,username:myName,replyTo:replyTarget&&replyTarget._conversation==='general'?{text:messagePreview(replyTarget),messageId:replyTarget.id,username:replyTarget.username||replyTarget.fromName||''}:null})});$('generalInput').value='';$('generalInput').style.height='40px';saveDraft('general',$('generalInput'));cancelReply();await loadGeneral()}catch(_){toast('Message could not be sent')}}
@@ -1085,11 +1098,11 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .composer-field{background:#090d13!important;border:1px solid var(--line)!important;box-shadow:0 8px 24px #0008!important}
 .composer-field:focus-within{border-color:var(--accent)!important}
 /* document: icon (left, centred) | filename and Download share a right edge */
-.bubble.file-bubble{width:fit-content!important;min-width:min(56vw,200px);max-width:min(72vw,300px)!important}
-.bubble.file-bubble .filecard{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;gap:12px;width:auto!important;margin:6px 8px 8px!important;padding:10px 14px 10px 12px!important;background:#0b1119!important;border:1px solid #ffffff20!important;border-radius:12px!important}
+.bubble.file-bubble{width:fit-content!important;min-width:0!important;max-width:min(72vw,300px)!important}
+.bubble.file-bubble .filecard{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;gap:9px;width:fit-content!important;max-width:100%;margin:6px 8px 8px!important;padding:10px 12px!important;background:#0b1119!important;border:1px solid #ffffff20!important;border-radius:12px!important}
 .bubble.file-bubble .msgname+.filecard,.bubble.file-bubble .quoted-message+.filecard{margin-top:0!important}
 .bubble.file-bubble .filecard-icon{flex:0 0 28px;align-self:center;display:flex;align-items:center;justify-content:center}
-.bubble.file-bubble .filecard-text{flex:1 1 auto;min-width:0;display:flex!important;flex-direction:column!important;align-items:stretch;gap:4px;padding:0;background:transparent;border:0;border-radius:0}
+.bubble.file-bubble .filecard-text{flex:0 1 auto!important;width:fit-content;min-width:0;display:flex!important;flex-direction:column!important;align-items:stretch;gap:4px;padding:0;background:transparent;border:0;border-radius:0}
 .bubble.file-bubble .filecard-name{display:block;width:100%;font-weight:500!important;font-size:13px;line-height:1.3;overflow-wrap:anywhere;word-break:break-word;text-align:right}
 .bubble.file-bubble .filecard-download-text{align-self:flex-end!important;margin:0!important;font-size:12px;font-weight:650!important}
 
@@ -1100,10 +1113,10 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* On phones, keep the conversation frame at its resting height while the keyboard is open. */
 @media(max-width:600px){
  body.keyboard-open.conversation-mode,body.keyboard-open.conversation-mode .app{height:var(--app-full-height,100dvh)!important}
- body.keyboard-open .layout,body.keyboard-open .page.active,body.keyboard-open .chat-shell,body.keyboard-open .chat-panel{overflow:visible!important}
+ body.keyboard-open .layout,body.keyboard-open .page.active,body.keyboard-open .chat-shell,body.keyboard-open .chat-panel,body.keyboard-open #dmPanel{overflow:visible!important}
  body.keyboard-open .chat-panel{height:100%!important}
  body.keyboard-open .messages{padding-bottom:100px!important}
- body.keyboard-open .chat-panel .composer{position:fixed!important;left:12px;right:12px;bottom:0;width:auto;z-index:30;background:var(--panel,#11151d)!important;border:1px solid var(--line);border-radius:16px 16px 0 0;box-shadow:0 -8px 22px #0008}
+ body.keyboard-open .chat-panel .composer{position:fixed!important;left:12px;right:12px;bottom:0;width:auto;z-index:30;padding-bottom:4px!important;background:var(--panel,#11151d)!important;border:1px solid var(--line);border-radius:16px 16px 0 0;box-shadow:0 -8px 22px #0008}
 }
 </style>
 
