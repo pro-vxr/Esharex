@@ -43,7 +43,7 @@ public class ShareServerService extends Service {
     private static final String HOST_CHANNEL = "esharex_host";
     private static final String MESSAGE_CHANNEL = "esharex_messages";
     private static final int FOREGROUND_ID = 11;
-    private ShareHttpServer server;
+    private volatile ShareHttpServer server;
     private PowerManager.WakeLock wakeLock;
     private NsdManager nsdManager;
     private NsdManager.RegistrationListener registrationListener;
@@ -84,7 +84,7 @@ public class ShareServerService extends Service {
         startForeground(FOREGROUND_ID, notification);
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "eShareX:HostLock");
-        wakeLock.acquire(4 * 60 * 60 * 1000L);
+        wakeLock.acquire(); // released in onDestroy
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -128,21 +128,27 @@ public class ShareServerService extends Service {
         return value != null && value.matches("https?://[A-Za-z0-9.\\-]+(:[0-9]{1,5})?");
     }
 
+    private final java.util.concurrent.atomic.AtomicBoolean serverStarting = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private final ExecutorService startExecutor = Executors.newSingleThreadExecutor();
+
     private void startHostingServer() {
-        try {
-            File data = new File(getFilesDir(), "esharex");
-            if (!data.exists()) data.mkdirs();
-            android.content.SharedPreferences pairPrefs = getSharedPreferences("esharex_pairing", MODE_PRIVATE);
-            String code = pairPrefs.getString("pair_code", "");
-            long created = pairPrefs.getLong("pair_created", 0L);
-            if (code.isEmpty() || System.currentTimeMillis() - created > 30L * 60L * 1000L) {
-                code = String.format(java.util.Locale.US, "%04d", new java.security.SecureRandom().nextInt(10000));
-                pairPrefs.edit().putString("pair_code", code).putLong("pair_created", System.currentTimeMillis()).apply();
-            }
-            server = new ShareHttpServer(this, data);
-            server.start();
-            advertiseService();
-        } catch (Exception e) { stopSelf(); }
+        if (server != null || !serverStarting.compareAndSet(false, true)) return;
+        // Loading the chat history and starting the socket must not run on the UI thread.
+        startExecutor.execute(() -> {
+            try {
+                File data = new File(getFilesDir(), "esharex");
+                if (!data.exists()) data.mkdirs();
+                PairingCode.get(this);
+                ShareHttpServer created = new ShareHttpServer(this, data);
+                created.start();
+                if (destroyed) { created.stop(); return; }
+                server = created;
+                handler.post(this::advertiseService);
+            } catch (Exception e) {
+                android.util.Log.e("eShareX", "Could not start server", e);
+                handler.post(this::stopSelf);
+            } finally { serverStarting.set(false); }
+        });
     }
 
     private void sendPresenceHeartbeat() {
@@ -215,7 +221,9 @@ public class ShareServerService extends Service {
         manager.notify(requestCode, notification);
     }
 
+    private int advertiseRetries = 0;
     private void advertiseService() {
+        if (nsdManager != null && registrationListener != null) { try { nsdManager.unregisterService(registrationListener); } catch (Exception ignored) {} }
         nsdManager = (NsdManager) getSystemService(NSD_SERVICE);
         NsdServiceInfo info = new NsdServiceInfo();
         android.content.SharedPreferences prefs = getSharedPreferences("esharex_identity", MODE_PRIVATE);
@@ -227,7 +235,10 @@ public class ShareServerService extends Service {
         info.setPort(8080);
         registrationListener = new NsdManager.RegistrationListener() {
             @Override public void onServiceRegistered(NsdServiceInfo serviceInfo) {}
-            @Override public void onRegistrationFailed(NsdServiceInfo serviceInfo, int errorCode) { android.util.Log.e("eShareX", "NSD registration failed: " + errorCode); }
+            @Override public void onRegistrationFailed(NsdServiceInfo serviceInfo, int errorCode) {
+                android.util.Log.e("eShareX", "NSD registration failed: " + errorCode);
+                if (!destroyed && advertiseRetries++ < 8) handler.postDelayed(() -> { if (!destroyed && server != null) advertiseService(); }, 3000L);
+            }
             @Override public void onServiceUnregistered(NsdServiceInfo serviceInfo) {}
             @Override public void onUnregistrationFailed(NsdServiceInfo serviceInfo, int errorCode) { android.util.Log.w("eShareX", "NSD unregistration failed: " + errorCode); }
         };
@@ -252,6 +263,7 @@ public class ShareServerService extends Service {
         destroyed = true;
         handler.removeCallbacks(monitorTask);
         monitorExecutor.shutdownNow();
+        startExecutor.shutdownNow();
         if (nsdManager != null && registrationListener != null) { try { nsdManager.unregisterService(registrationListener); } catch (Exception ignored) {} }
         if (server != null) server.stop();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();

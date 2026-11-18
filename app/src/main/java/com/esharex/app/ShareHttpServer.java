@@ -49,8 +49,9 @@ public class ShareHttpServer extends NanoHTTPD {
             String uri = session.getUri();
             Method method = session.getMethod();
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
-            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.7.1"));
+            if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.8.1"));
             if ("/api/pair/info".equals(uri) && Method.GET.equals(method)) return pairInfo(session);
+            if ("/api/pair/code".equals(uri) && Method.GET.equals(method)) return json(new JSONObject().put("code", PairingCode.get(context)));
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
                 String deviceId = context.getSharedPreferences("esharex_identity", Context.MODE_PRIVATE).getString("device_id", "");
@@ -81,165 +82,34 @@ public class ShareHttpServer extends NanoHTTPD {
     }
 
 
+    private final java.util.Map<String, long[]> pairFailures = new java.util.HashMap<>();
     private Response pairInfo(IHTTPSession session) throws Exception {
-        android.content.SharedPreferences prefs = context.getSharedPreferences("esharex_pairing", Context.MODE_PRIVATE);
         String supplied = session.getParms().getOrDefault("code", "");
-        String expected = prefs.getString("pair_code", "");
-        long created = prefs.getLong("pair_created", 0L);
-        boolean valid = !expected.isEmpty() && expected.equals(supplied) &&
-            System.currentTimeMillis() - created <= 30L * 60L * 1000L;
-        if (!valid) return jsonError(Response.Status.FORBIDDEN, "Pairing code is invalid or expired");
+        String remote = String.valueOf(session.getRemoteIpAddress());
+        long now = System.currentTimeMillis();
+        synchronized (pairFailures) {
+            long[] f = pairFailures.get(remote);
+            if (f != null && now - f[1] > 60000L) { pairFailures.remove(remote); f = null; }
+            if (f != null && f[0] >= 12) return jsonError(Response.Status.FORBIDDEN, "Too many wrong codes. Wait a minute.");
+        }
+        boolean valid = PairingCode.get(context).equals(supplied);
+        if (!valid) {
+            synchronized (pairFailures) {
+                long[] f = pairFailures.get(remote);
+                if (f == null) pairFailures.put(remote, new long[]{1, now}); else f[0]++;
+            }
+            return jsonError(Response.Status.FORBIDDEN, "Pairing code is invalid");
+        }
         String deviceId = context.getSharedPreferences("esharex_identity", Context.MODE_PRIVATE).getString("device_id", "");
         return json(new JSONObject().put("ok", true).put("deviceId", deviceId).put("name", "eShareX host"));
     }
-
-    private JSONObject readBody(IHTTPSession session) throws Exception {
-        Map<String,String> files = new HashMap<>(); session.parseBody(files);
-        String raw = files.get("postData"); return new JSONObject(raw == null ? "{}" : raw);
-    }
-
-    private Response qrCode(IHTTPSession session) throws Exception {
-        String value = session.getParms().get("text");
-        if (value == null || value.trim().isEmpty()) value = "http://" + getLocalIp() + ":8080";
-        BitMatrix matrix = new MultiFormatWriter().encode(value, BarcodeFormat.QR_CODE, 320, 320);
-        android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(320, 320, android.graphics.Bitmap.Config.ARGB_8888);
-        for (int y = 0; y < 320; y++) for (int x = 0; x < 320; x++)
-            bitmap.setPixel(x, y, matrix.get(x, y) ? android.graphics.Color.BLACK : android.graphics.Color.WHITE);
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
-        bitmap.recycle();
-        Response response = newFixedLengthResponse(Response.Status.OK, "image/png", new ByteArrayInputStream(output.toByteArray()), output.size());
-        addCors(response);
-        return response;
-    }
-
-    private Response register(IHTTPSession session) throws Exception {
-        JSONObject in = readBody(session);
-        String requestedId = safeText(in.optString("id", ""), 80);
-        String name = safeText(in.optString("name", "Guest"), 32);
-        if (requestedId.isEmpty() || name.isEmpty())
-            return jsonError(Response.Status.BAD_REQUEST, "Device ID and name are required");
-
-        // Username-only identity: the normalized username maps to one stable account ID.
-        // This lets the same browser reconnect after its origin/IP changes. It is NOT secure
-        // authentication: anyone on the LAN who chooses the same username shares that identity.
-        String normalizedName = normalizeUsername(name);
-        if (normalizedName.isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "A display name is required");
-        String canonicalId = stableUsernameId(normalizedName);
-
-        synchronized (users) {
-            JSONObject canonical = users.get(canonicalId);
-            ArrayList<String> aliases = new ArrayList<>();
-            List<JSONObject> legacyMatches = new ArrayList<>();
-            for (JSONObject candidate : new ArrayList<>(users.values())) {
-                String candidateId = candidate.optString("id", "");
-                if (!candidateId.isEmpty() && !candidateId.equals(canonicalId)
-                        && normalizedName.equals(normalizeUsername(candidate.optString("name", "")))) {
-                    legacyMatches.add(candidate);
-                }
-            }
-
-            if (canonical == null && !legacyMatches.isEmpty()) {
-                canonical = legacyMatches.get(0);
-                for (JSONObject candidate : legacyMatches) {
-                    if (candidate.optLong("joinedAt", Long.MAX_VALUE) < canonical.optLong("joinedAt", Long.MAX_VALUE))
-                        canonical = candidate;
-                }
-                // The selected legacy row itself must also be migrated to the stable ID.
-                aliases.add(canonical.optString("id", ""));
-            }
-            if (canonical == null) {
-                canonical = new JSONObject().put("joinedAt", System.currentTimeMillis());
-            }
-            for (JSONObject candidate : legacyMatches) {
-                if (candidate != canonical) {
-                    mergeReadState(canonical, candidate);
-                    aliases.add(candidate.optString("id", ""));
-                }
-            }
-            canonical.put("id", canonicalId);
-            long now = System.currentTimeMillis();
-            long previousSeen = canonical.optLong("lastSeen", 0L);
-            canonical.put("name", name).put("lastSeen", now);
-            if (previousSeen == 0L || now - previousSeen > 45000L || !canonical.has("notificationCursorSeq"))
-                canonical.put("notificationCursorSeq", currentEventSequence());
-
-            // Store the canonical row before migrating references so read-state migration can
-            // find the destination. Old aliases are removed only after their message IDs move.
-            users.put(canonicalId, canonical);
-            for (String alias : new LinkedHashSet<>(aliases)) {
-                if (alias.isEmpty() || alias.equals(canonicalId)) continue;
-                migrateUserReferences(alias, canonicalId);
-                users.remove(alias);
-            }
-            saveUsers();
-            saveArray(messagesFile, messages);
-            saveArray(dmFile, directMessages);
-            return json(new JSONObject().put("success", true).put("canonicalId", canonicalId)
-                    .put("user", canonical).put("mergedRecords", new LinkedHashSet<>(aliases).size()));
-        }
-    }
-
-    private String normalizeUsername(String name) {
-        if (name == null) return "";
-        return Normalizer.normalize(name.trim(), Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
-    }
-
-    private String stableUsernameId(String normalizedName) throws Exception {
-        byte[] digest = MessageDigest.getInstance("SHA-256").digest(normalizedName.getBytes("UTF-8"));
-        StringBuilder hex = new StringBuilder("user-");
-        for (byte value : digest) hex.append(String.format(Locale.ROOT, "%02x", value & 0xff));
-        return hex.toString();
-    }
-
-    private void mergeReadState(JSONObject target, JSONObject source) throws Exception {
-        target.put("generalReadAt", Math.max(target.optLong("generalReadAt", 0), source.optLong("generalReadAt", 0)));
-        target.put("notificationCursorSeq", Math.max(target.optLong("notificationCursorSeq", 0), source.optLong("notificationCursorSeq", 0)));
-        JSONObject targetDM = target.optJSONObject("dmReadAt");
-        if (targetDM == null) targetDM = new JSONObject();
-        JSONObject sourceDM = source.optJSONObject("dmReadAt");
-        if (sourceDM != null) {
-            java.util.Iterator<String> keys = sourceDM.keys();
-            while (keys.hasNext()) {
-                String peer = keys.next();
-                targetDM.put(peer, Math.max(targetDM.optLong(peer, 0), sourceDM.optLong(peer, 0)));
-            }
-        }
-        target.put("dmReadAt", targetDM);
-    }
-
-    private void migrateUserReferences(String oldId, String newId) throws Exception {
-        for (JSONObject msg : messages) if (oldId.equals(msg.optString("userId"))) msg.put("userId", newId);
-        for (JSONObject msg : directMessages) {
-            if (oldId.equals(msg.optString("from"))) msg.put("from", newId);
-            if (oldId.equals(msg.optString("to"))) msg.put("to", newId);
-        }
-        for (JSONObject user : users.values()) {
-            JSONObject dmReadAt = user.optJSONObject("dmReadAt");
-            if (dmReadAt != null && dmReadAt.has(oldId)) {
-                dmReadAt.put(newId, Math.max(dmReadAt.optLong(newId, 0), dmReadAt.optLong(oldId, 0)));
-                dmReadAt.remove(oldId);
-            }
-        }
-    }
-    private Response leave(IHTTPSession session) throws Exception {
-        JSONObject in = readBody(session);
-        String id = safeText(in.optString("id", ""), 80);
-        if (id.isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "Device ID is required");
-        JSONObject user = users.get(id);
-        if (user != null) {
-            user.put("lastSeen", 0);
-            user.put("notificationCursor", System.currentTimeMillis());
-            saveUsers();
-        }
-        return json(new JSONObject().put("success", true).put("left", true));
-    }
-
     private Response heartbeat(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session); String id = safeText(in.optString("id", ""), 80);
         JSONObject user = users.get(id);
         if (user == null) return jsonError(Response.Status.UNAUTHORIZED, "Register first");
-        user.put("lastSeen", System.currentTimeMillis()); saveUsers();
+        long nowSeen = System.currentTimeMillis();
+        user.put("lastSeen", nowSeen); usersDirty = true;
+        if (nowSeen - lastUsersSave > 60000L) saveUsers();
         return json(new JSONObject().put("success", true).put("online", true));
     }
     private Response listUsers(IHTTPSession session) throws Exception {
@@ -592,7 +462,10 @@ public class ShareHttpServer extends NanoHTTPD {
             }
         }
     }
-    private synchronized void saveUsers(){JSONArray a=new JSONArray();for(JSONObject u:users.values())a.put(u);File temp=new File(dataDir,"users.json.tmp");try(FileOutputStream o=new FileOutputStream(temp)){o.write(a.toString().getBytes("UTF-8"));o.getFD().sync();}catch(Exception ignored){temp.delete();return;}if(!temp.renameTo(usersFile)){try(FileInputStream in=new FileInputStream(temp);FileOutputStream out=new FileOutputStream(usersFile)){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}catch(Exception ignored){}temp.delete();}}
+    private volatile boolean usersDirty = false;
+    private volatile long lastUsersSave = System.currentTimeMillis();
+    @Override public void stop() { try { if (usersDirty) saveUsers(); } catch (Exception ignored) {} super.stop(); }
+    private synchronized void saveUsers(){usersDirty=false;lastUsersSave=System.currentTimeMillis();JSONArray a=new JSONArray();for(JSONObject u:users.values())a.put(u);File temp=new File(dataDir,"users.json.tmp");try(FileOutputStream o=new FileOutputStream(temp)){o.write(a.toString().getBytes("UTF-8"));o.getFD().sync();}catch(Exception ignored){temp.delete();return;}if(!temp.renameTo(usersFile)){try(FileInputStream in=new FileInputStream(temp);FileOutputStream out=new FileOutputStream(usersFile)){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}catch(Exception ignored){}temp.delete();}}
     private String readFile(File f)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();try(InputStream in=new FileInputStream(f)){byte[]b=new byte[4096];int n;while((n=in.read(b))!=-1)o.write(b,0,n);}return o.toString("UTF-8");}
     private Response serveUpload(String name, IHTTPSession session) throws Exception {
         if (name.contains("/") || name.contains("\\") || name.contains("..")) {
@@ -607,7 +480,29 @@ public class ShareHttpServer extends NanoHTTPD {
         // content is forced to download to prevent same-origin HTML/SVG script execution.
         boolean safeInline = mime.startsWith("image/") && !"image/svg+xml".equals(mime) || "video/mp4".equals(mime);
         if (!safeInline) mime = "application/octet-stream";
-        Response r = newFixedLengthResponse(Response.Status.OK, mime, new FileInputStream(f), f.length());
+        long total = f.length();
+        long start = 0, end = total - 1;
+        boolean partial = false;
+        String range = session.getHeaders().get("range");
+        if (range != null && range.startsWith("bytes=") && total > 0) {
+            try {
+                String[] bounds = range.substring(6).split(",")[0].trim().split("-", -1);
+                if (bounds[0].isEmpty()) { long n = Long.parseLong(bounds[1]); start = Math.max(0, total - n); }
+                else { start = Long.parseLong(bounds[0]); if (bounds.length > 1 && !bounds[1].isEmpty()) end = Math.min(end, Long.parseLong(bounds[1])); }
+                if (start > end || start >= total) {
+                    Response bad = newFixedLengthResponse(Response.Status.RANGE_NOT_SATISFIABLE, MIME_PLAINTEXT, "");
+                    bad.addHeader("Content-Range", "bytes */" + total);
+                    return bad;
+                }
+                partial = true;
+            } catch (Exception ignored) { start = 0; end = total - 1; partial = false; }
+        }
+        FileInputStream stream = new FileInputStream(f);
+        if (start > 0) { long skipped = 0; while (skipped < start) { long n = stream.skip(start - skipped); if (n <= 0) break; skipped += n; } }
+        long length = end - start + 1;
+        Response r = newFixedLengthResponse(partial ? Response.Status.PARTIAL_CONTENT : Response.Status.OK, mime, stream, length);
+        r.addHeader("Accept-Ranges", "bytes");
+        if (partial) r.addHeader("Content-Range", "bytes " + start + "-" + end + "/" + total);
         String original = safeText(session.getParms().get("filename"), 180);
         if (original.isEmpty()) original = name;
         original = original.replaceAll("[\\\"\\r\\n]", "_");
@@ -615,6 +510,7 @@ public class ShareHttpServer extends NanoHTTPD {
         r.addHeader("Content-Disposition", disposition + "; filename=\"" + original + "\"; filename*=UTF-8''" + java.net.URLEncoder.encode(original, "UTF-8").replace("+", "%20"));
         r.addHeader("X-Content-Type-Options", "nosniff");
         addCors(r);
+        r.addHeader("Cache-Control", "public, max-age=31536000, immutable");
         return r;
     }
     private Response asset(String name,String mime)throws Exception{InputStream in=context.getAssets().open(name);Response r=newChunkedResponse(Response.Status.OK,mime,in);addCors(r);return r;}
