@@ -535,8 +535,14 @@ async function copyTextToClipboard(value){
  if(!copied)throw new Error('Clipboard permission unavailable');
  return true;
 }
-function toggleChatActionsMenu(){const menu=$('chatActionsMenu');const anchor=document.querySelector('#chatPage .chat-context .iconbtn');const opening=menu.hidden;$('friendsMenu').hidden=true;if(!opening){menu.hidden=true;return}menu.hidden=false;$('headerEditAction').hidden=!(lastMessageContext&&lastMessageContext.mine&&lastMessageContext.message.type!=='file');placeOverlayMenu(menu,anchor,true)}
-async function runHeaderMessageAction(action){$('chatActionsMenu').hidden=true;if(!lastMessageContext){toast('Tap a message first');return}const {message,row,mine}=lastMessageContext;if(action==='copy'){try{await copyTextToClipboard(messagePreview(message));toast('Copied')}catch(_){toast('Copy unavailable — check clipboard permission')}}else if(action==='reply')setReplyTarget(message);else if(action==='edit'&&mine&&message.type!=='file')editMessage(message);else if(action==='select')enterMessageSelection(row,message)}
+function getHeaderActionTarget(){
+ if(lastMessageContext?.row?.isConnected)return lastMessageContext;
+ const row=currentMessageBox()?.querySelector(':scope > .msgrow:last-child');
+ if(!row||!row.__message)return null;
+ return {message:row.__message,row,mine:row.classList.contains('mine')};
+}
+function toggleChatActionsMenu(){const menu=$('chatActionsMenu');const anchor=document.querySelector('#chatPage .chat-context .iconbtn');const opening=menu.hidden;$('friendsMenu').hidden=true;if(!opening){menu.hidden=true;return}menu.hidden=false;const target=getHeaderActionTarget();$('headerEditAction').hidden=!(target&&target.mine&&target.message.type!=='file');placeOverlayMenu(menu,anchor,true)}
+async function runHeaderMessageAction(action){$('chatActionsMenu').hidden=true;const target=getHeaderActionTarget();if(!target){toast('There are no messages to act on yet');return}const {message,row,mine}=target;if(action==='copy'){try{await copyTextToClipboard(messagePreview(message));toast('Copied')}catch(_){toast('Copy unavailable — check clipboard permission')}}else if(action==='reply')setReplyTarget(message);else if(action==='edit'&&mine&&message.type!=='file')editMessage(message);else if(action==='select')enterMessageSelection(row,message)}
 
 function currentMessageBox(){return currentPeer?$('dmMessages'):$('generalMessages')}
 function enterMessageSelection(row,m){if(!messageSelectionMode){messageSelectionMode=true;selectedMessages.clear()}toggleMessageSelection(row,m)}
@@ -570,7 +576,7 @@ if(!window.__esharexImageResizeBound){
  window.addEventListener('resize',()=>document.querySelectorAll('.bubble.image-message img').forEach(fitImageMessage),{passive:true});
 }
 function renderMessage(m,container,mine){
- const row=document.createElement('div');row.className='msgrow'+(mine?' mine':'');row.dataset.messageId=m.id||'';row.dataset.signature=JSON.stringify(m);
+  const row=document.createElement('div');row.className='msgrow'+(mine?' mine':'');row.dataset.messageId=m.id||'';row.dataset.signature=JSON.stringify(m);row.__message=m;
  const b=document.createElement('div');b.className='bubble';
  if(!mine){const n=document.createElement('div');n.className='msgname';n.textContent=m.username||m.fromName||'Member';b.appendChild(n)}
  if(m.replyTo){const q=document.createElement('button');q.type='button';q.className='quoted-message';q.textContent='↳ '+(m.replyTo.text||m.replyTo.filename||'Attachment');q.title='Jump to original message';q.addEventListener('click',()=>jumpToOriginal(m.replyTo.messageId));b.appendChild(q)}
@@ -1103,7 +1109,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .bubble.file-bubble .msgname+.filecard,.bubble.file-bubble .quoted-message+.filecard{margin-top:0!important}
 .bubble.file-bubble .filecard-icon{flex:0 0 28px;align-self:center;display:flex;align-items:center;justify-content:center}
 .bubble.file-bubble .filecard-text{flex:0 1 auto!important;width:fit-content;min-width:0;display:flex!important;flex-direction:column!important;align-items:stretch;gap:4px;padding:0;background:transparent;border:0;border-radius:0}
-.bubble.file-bubble .filecard-name{display:block;width:100%;font-weight:500!important;font-size:13px;line-height:1.3;overflow-wrap:anywhere;word-break:break-word;text-align:right}
+.bubble.file-bubble .filecard-name{display:block;width:100%;font-weight:500!important;font-size:13px;line-height:1.3;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere!important;word-break:break-word!important;text-align:right}
 .bubble.file-bubble .filecard-download-text{align-self:flex-end!important;margin:0!important;font-size:12px;font-weight:650!important}
 
 /* Keep the message list and composer together inside one chat panel. */
@@ -1114,7 +1120,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 @media(max-width:600px){
  body.keyboard-open.conversation-mode,body.keyboard-open.conversation-mode .app{height:var(--app-full-height,100dvh)!important}
  body.keyboard-open .layout,body.keyboard-open .page.active,body.keyboard-open .chat-shell,body.keyboard-open .chat-panel,body.keyboard-open #dmPanel{overflow:visible!important}
- body.keyboard-open .chat-panel{height:100%!important}
+ body.keyboard-open .chat-panel{height:100%!important;border-bottom-color:transparent!important;border-bottom-left-radius:0!important;border-bottom-right-radius:0!important}
  body.keyboard-open .messages{padding-bottom:100px!important}
  body.keyboard-open .chat-panel .composer{position:fixed!important;left:12px;right:12px;bottom:0;width:auto;z-index:30;padding-bottom:4px!important;background:var(--panel,#11151d)!important;border:1px solid var(--line);border-radius:16px 16px 0 0;box-shadow:0 -8px 22px #0008}
 }
