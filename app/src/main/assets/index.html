@@ -758,11 +758,15 @@ function restoreChatFocusPosition(){
  });
 }
 ['generalInput','dmInput'].forEach(id=>{const input=document.getElementById(id);if(input){input.addEventListener('focus',()=>captureChatFocus(input));input.addEventListener('blur',()=>{delete chatFocusState[id==='dmInput'?'dmMessages':'generalMessages']})}});
+let fullAppViewportHeight=window.innerHeight;
 function updateAppViewportHeight(){
  const vv=window.visualViewport;const h=vv?vv.height:window.innerHeight;const top=vv?vv.offsetTop:0;
- document.documentElement.style.setProperty('--app-height',Math.max(1,Math.round(h))+'px');
+ const keyboardOpen=!!vv&&vv.height<window.innerHeight*0.78;
+ if(!keyboardOpen)fullAppViewportHeight=Math.max(h,window.innerHeight);
+ document.documentElement.style.setProperty('--app-full-height',Math.max(1,Math.round(fullAppViewportHeight))+'px');
+ document.documentElement.style.setProperty('--app-height',Math.max(1,Math.round(keyboardOpen?fullAppViewportHeight:h))+'px');
  document.documentElement.style.setProperty('--app-viewport-top',Math.round(top)+'px');
- document.body.classList.toggle('keyboard-open',!!vv&&vv.height<window.innerHeight*0.78);
+ document.body.classList.toggle('keyboard-open',keyboardOpen);
  restoreChatFocusPosition();
 }
 updateAppViewportHeight();
@@ -1061,8 +1065,9 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .bubble.file-bubble .filecard-text{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0;flex:1}
 .bubble.file-bubble .filecard-name{font-weight:500!important;font-size:13px;line-height:1.3;overflow-wrap:anywhere;word-break:break-word}
 .bubble.file-bubble .filecard-download-text{align-self:flex-start!important;font-size:12px;font-weight:650!important}
-/* composer: no box around the text field */
-.composer-field,.composer-field:focus-within{background:transparent!important;border:0!important;box-shadow:none!important}
+/* Keep the typing area visibly framed, including while it has focus. */
+.composer-field{background:#090d13!important;border:1px solid var(--line)!important;box-shadow:0 4px 14px #0005!important}
+.composer-field:focus-within{background:#090d13!important;border:1px solid var(--accent)!important;box-shadow:0 0 0 2px #b8f36b22,0 4px 14px #0005!important}
 .composer-field textarea,.composer-field textarea:focus{box-shadow:none!important;outline:none!important}
 /* upload card: preview | filename / progress + count·status on one line */
 .upload-card{height:44px;padding:5px 8px}
@@ -1091,7 +1096,15 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* Keep the message list and composer together inside one chat panel. */
 .chat-panel,body.conversation-mode .chat-panel{border:1px solid var(--line)!important;border-radius:18px!important;background:var(--panel,#0f1520)!important;box-shadow:none!important;overflow:hidden!important}
 .chat-panel .messages{flex:1 1 auto;background:transparent!important;border:0!important;border-radius:0!important}
-.chat-panel .composer{flex:0 0 auto;padding:12px 14px max(12px,env(safe-area-inset-bottom))!important;margin:0!important}
+ .chat-panel .composer{flex:0 0 auto;padding:12px 14px max(12px,env(safe-area-inset-bottom))!important;margin:0!important}
+/* On phones, keep the conversation frame at its resting height while the keyboard is open. */
+@media(max-width:600px){
+ body.keyboard-open.conversation-mode,body.keyboard-open.conversation-mode .app{height:var(--app-full-height,100dvh)!important}
+ body.keyboard-open .layout,body.keyboard-open .page.active,body.keyboard-open .chat-shell,body.keyboard-open .chat-panel{overflow:visible!important}
+ body.keyboard-open .chat-panel{height:100%!important}
+ body.keyboard-open .messages{padding-bottom:100px!important}
+ body.keyboard-open .chat-panel .composer{position:fixed!important;left:12px;right:12px;bottom:0;width:auto;z-index:30;background:var(--panel,#11151d)!important;border:1px solid var(--line);border-radius:16px 16px 0 0;box-shadow:0 -8px 22px #0008}
+}
 </style>
 
 </body>
