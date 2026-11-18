@@ -103,6 +103,149 @@ public class ShareHttpServer extends NanoHTTPD {
         String deviceId = context.getSharedPreferences("esharex_identity", Context.MODE_PRIVATE).getString("device_id", "");
         return json(new JSONObject().put("ok", true).put("deviceId", deviceId).put("name", "eShareX host"));
     }
+
+    private JSONObject readBody(IHTTPSession session) throws Exception {
+        Map<String,String> files = new HashMap<>(); session.parseBody(files);
+        String raw = files.get("postData"); return new JSONObject(raw == null ? "{}" : raw);
+    }
+
+    private Response qrCode(IHTTPSession session) throws Exception {
+        String value = session.getParms().get("text");
+        if (value == null || value.trim().isEmpty()) value = "http://" + getLocalIp() + ":8080";
+        BitMatrix matrix = new MultiFormatWriter().encode(value, BarcodeFormat.QR_CODE, 320, 320);
+        android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(320, 320, android.graphics.Bitmap.Config.ARGB_8888);
+        for (int y = 0; y < 320; y++) for (int x = 0; x < 320; x++)
+            bitmap.setPixel(x, y, matrix.get(x, y) ? android.graphics.Color.BLACK : android.graphics.Color.WHITE);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
+        bitmap.recycle();
+        Response response = newFixedLengthResponse(Response.Status.OK, "image/png", new ByteArrayInputStream(output.toByteArray()), output.size());
+        addCors(response);
+        return response;
+    }
+
+    private Response register(IHTTPSession session) throws Exception {
+        JSONObject in = readBody(session);
+        String requestedId = safeText(in.optString("id", ""), 80);
+        String name = safeText(in.optString("name", "Guest"), 32);
+        if (requestedId.isEmpty() || name.isEmpty())
+            return jsonError(Response.Status.BAD_REQUEST, "Device ID and name are required");
+
+        // Username-only identity: the normalized username maps to one stable account ID.
+        // This lets the same browser reconnect after its origin/IP changes. It is NOT secure
+        // authentication: anyone on the LAN who chooses the same username shares that identity.
+        String normalizedName = normalizeUsername(name);
+        if (normalizedName.isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "A display name is required");
+        String canonicalId = stableUsernameId(normalizedName);
+
+        synchronized (users) {
+            JSONObject canonical = users.get(canonicalId);
+            ArrayList<String> aliases = new ArrayList<>();
+            List<JSONObject> legacyMatches = new ArrayList<>();
+            for (JSONObject candidate : new ArrayList<>(users.values())) {
+                String candidateId = candidate.optString("id", "");
+                if (!candidateId.isEmpty() && !candidateId.equals(canonicalId)
+                        && normalizedName.equals(normalizeUsername(candidate.optString("name", "")))) {
+                    legacyMatches.add(candidate);
+                }
+            }
+
+            if (canonical == null && !legacyMatches.isEmpty()) {
+                canonical = legacyMatches.get(0);
+                for (JSONObject candidate : legacyMatches) {
+                    if (candidate.optLong("joinedAt", Long.MAX_VALUE) < canonical.optLong("joinedAt", Long.MAX_VALUE))
+                        canonical = candidate;
+                }
+                // The selected legacy row itself must also be migrated to the stable ID.
+                aliases.add(canonical.optString("id", ""));
+            }
+            if (canonical == null) {
+                canonical = new JSONObject().put("joinedAt", System.currentTimeMillis());
+            }
+            for (JSONObject candidate : legacyMatches) {
+                if (candidate != canonical) {
+                    mergeReadState(canonical, candidate);
+                    aliases.add(candidate.optString("id", ""));
+                }
+            }
+            canonical.put("id", canonicalId);
+            long now = System.currentTimeMillis();
+            long previousSeen = canonical.optLong("lastSeen", 0L);
+            canonical.put("name", name).put("lastSeen", now);
+            if (previousSeen == 0L || now - previousSeen > 45000L || !canonical.has("notificationCursorSeq"))
+                canonical.put("notificationCursorSeq", currentEventSequence());
+
+            // Store the canonical row before migrating references so read-state migration can
+            // find the destination. Old aliases are removed only after their message IDs move.
+            users.put(canonicalId, canonical);
+            for (String alias : new LinkedHashSet<>(aliases)) {
+                if (alias.isEmpty() || alias.equals(canonicalId)) continue;
+                migrateUserReferences(alias, canonicalId);
+                users.remove(alias);
+            }
+            saveUsers();
+            saveArray(messagesFile, messages);
+            saveArray(dmFile, directMessages);
+            return json(new JSONObject().put("success", true).put("canonicalId", canonicalId)
+                    .put("user", canonical).put("mergedRecords", new LinkedHashSet<>(aliases).size()));
+        }
+    }
+
+    private String normalizeUsername(String name) {
+        if (name == null) return "";
+        return Normalizer.normalize(name.trim(), Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
+    }
+
+    private String stableUsernameId(String normalizedName) throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(normalizedName.getBytes("UTF-8"));
+        StringBuilder hex = new StringBuilder("user-");
+        for (byte value : digest) hex.append(String.format(Locale.ROOT, "%02x", value & 0xff));
+        return hex.toString();
+    }
+
+    private void mergeReadState(JSONObject target, JSONObject source) throws Exception {
+        target.put("generalReadAt", Math.max(target.optLong("generalReadAt", 0), source.optLong("generalReadAt", 0)));
+        target.put("notificationCursorSeq", Math.max(target.optLong("notificationCursorSeq", 0), source.optLong("notificationCursorSeq", 0)));
+        JSONObject targetDM = target.optJSONObject("dmReadAt");
+        if (targetDM == null) targetDM = new JSONObject();
+        JSONObject sourceDM = source.optJSONObject("dmReadAt");
+        if (sourceDM != null) {
+            java.util.Iterator<String> keys = sourceDM.keys();
+            while (keys.hasNext()) {
+                String peer = keys.next();
+                targetDM.put(peer, Math.max(targetDM.optLong(peer, 0), sourceDM.optLong(peer, 0)));
+            }
+        }
+        target.put("dmReadAt", targetDM);
+    }
+
+    private void migrateUserReferences(String oldId, String newId) throws Exception {
+        for (JSONObject msg : messages) if (oldId.equals(msg.optString("userId"))) msg.put("userId", newId);
+        for (JSONObject msg : directMessages) {
+            if (oldId.equals(msg.optString("from"))) msg.put("from", newId);
+            if (oldId.equals(msg.optString("to"))) msg.put("to", newId);
+        }
+        for (JSONObject user : users.values()) {
+            JSONObject dmReadAt = user.optJSONObject("dmReadAt");
+            if (dmReadAt != null && dmReadAt.has(oldId)) {
+                dmReadAt.put(newId, Math.max(dmReadAt.optLong(newId, 0), dmReadAt.optLong(oldId, 0)));
+                dmReadAt.remove(oldId);
+            }
+        }
+    }
+    private Response leave(IHTTPSession session) throws Exception {
+        JSONObject in = readBody(session);
+        String id = safeText(in.optString("id", ""), 80);
+        if (id.isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "Device ID is required");
+        JSONObject user = users.get(id);
+        if (user != null) {
+            user.put("lastSeen", 0);
+            user.put("notificationCursor", System.currentTimeMillis());
+            saveUsers();
+        }
+        return json(new JSONObject().put("success", true).put("left", true));
+    }
+
     private Response heartbeat(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session); String id = safeText(in.optString("id", ""), 80);
         JSONObject user = users.get(id);
