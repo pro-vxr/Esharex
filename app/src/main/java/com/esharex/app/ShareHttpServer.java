@@ -55,7 +55,7 @@ public class ShareHttpServer extends NanoHTTPD {
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
                 String deviceId = context.getSharedPreferences("esharex_identity", Context.MODE_PRIVATE).getString("device_id", "");
-                return json(new JSONObject().put("ip", ip).put("port", 8080).put("available", !"127.0.0.1".equals(ip)).put("address", "http://" + ip + ":8080").put("deviceId", deviceId));
+                return json(new JSONObject().put("ip", ip).put("port", 8080).put("available", !"127.0.0.1".equals(ip)).put("address", "http://" + ip + ":8080").put("deviceId", deviceId).put("hostSince", PairingCode.since(context)).put("messages", messages.size() + directMessages.size()));
             }
             if ("/api/qr".equals(uri) && Method.GET.equals(method)) return qrCode(session);
             if ("/api/register".equals(uri) && Method.POST.equals(method)) return register(session);

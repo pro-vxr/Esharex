@@ -138,7 +138,7 @@ public class ShareServerService extends Service {
             try {
                 File data = new File(getFilesDir(), "esharex");
                 if (!data.exists()) data.mkdirs();
-                PairingCode.get(this);
+                PairingCode.get(this); PairingCode.since(this);
                 ShareHttpServer created = new ShareHttpServer(this, data);
                 created.start();
                 if (destroyed) { created.stop(); return; }

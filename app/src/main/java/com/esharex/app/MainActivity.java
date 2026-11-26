@@ -166,6 +166,28 @@ public class MainActivity extends Activity {
         try { return new org.json.JSONObject(body).optString("deviceId", ""); } catch (Exception e) { return ""; }
     }
 
+    private void addCandidate(List<String[]> candidates, java.util.Set<String> seen, String host, String port, String body) {
+        if (body == null) return;
+        try {
+            org.json.JSONObject info = new org.json.JSONObject(body);
+            String id = info.optString("deviceId", "");
+            if (id.isEmpty() || !seen.add(id)) return;
+            long since = info.optLong("hostSince", Long.MAX_VALUE);       // old builds never win
+            if (since <= 0L) since = Long.MAX_VALUE;
+            candidates.add(new String[]{"http://" + host + ":" + port + "/", id, String.valueOf(since), String.valueOf(info.optInt("messages", 0))});
+        } catch (Exception ignored) {}
+    }
+
+    private boolean isOlder(long since, String id, long otherSince, String otherId) {
+        return since < otherSince || (since == otherSince && id.compareTo(otherId) < 0);
+    }
+
+    private int localMessageCount() {
+        String body = httpGet("http://127.0.0.1:8080/api/server-info", 900);
+        if (body == null) return -1;
+        try { return new org.json.JSONObject(body).optInt("messages", 0); } catch (Exception e) { return -1; }
+    }
+
     private void runDiscoveryCycle() {
         android.content.SharedPreferences conn = getSharedPreferences("esharex_connection", MODE_PRIVATE);
         String pairedId = conn.getString("paired_host_id", "");
@@ -173,8 +195,7 @@ public class MainActivity extends Activity {
         if (joinedRemote && pairedId.isEmpty()) return;               // joined manually: nothing to look for
         if (joinedRemote && pageRequested && httpGet(homeUrl + "api/health", 1500) != null) { missingPairedCycles = 0; return; }
 
-        // 1) hosts seen through NSD, 2) otherwise (or additionally) every address of the Wi-Fi network
-        List<String[]> candidates = new ArrayList<>();   // {url, deviceId}
+        List<String[]> candidates = new ArrayList<>();   // {url, deviceId, hostSince, messages}
         java.util.Set<String> seen = new java.util.HashSet<>();
         List<String[]> endpoints = new ArrayList<>();
         synchronized (nearby) {
@@ -183,41 +204,35 @@ public class MainActivity extends Activity {
                 if (host != null && host.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")) endpoints.add(new String[]{host, String.valueOf(info.getPort())});
             }
         }
-        for (String[] ep : endpoints) {
-            String body = httpGet("http://" + ep[0] + ":" + ep[1] + "/api/server-info", 1500);
-            String id = body == null ? "" : deviceIdFrom(body);
-            if (!id.isEmpty() && seen.add(id)) candidates.add(new String[]{"http://" + ep[0] + ":" + ep[1] + "/", id});
-        }
+        for (String[] ep : endpoints) addCandidate(candidates, seen, ep[0], ep[1], httpGet("http://" + ep[0] + ":" + ep[1] + "/api/server-info", 1500));
         String localId = getStableDeviceId();
         boolean needScan = candidates.isEmpty() || (!pairedId.isEmpty() && !seen.contains(pairedId));
-        if (needScan) {
-            for (String[] hit : scanForServers("/api/server-info", false, 450)) {
-                String id = deviceIdFrom(hit[1]);
-                if (!id.isEmpty() && seen.add(id)) candidates.add(new String[]{"http://" + hit[0] + ":8080/", id});
-            }
-        }
+        if (needScan) for (String[] hit : scanForServers("/api/server-info", false, 450)) addCandidate(candidates, seen, hit[0], "8080", hit[1]);
 
         String chosenUrl = null, chosenId = null;
         if (!pairedId.isEmpty()) {
             for (String[] c : candidates) if (c[1].equals(pairedId)) { chosenUrl = c[0]; chosenId = c[1]; break; }
             if (chosenUrl == null) {
-                // Paired host is gone. If it is really missing for a while and another host exists, follow that one.
+                // Paired host is gone. If it stays missing and another host exists, follow the oldest one.
                 missingPairedCycles++;
                 if (joinedRemote && missingPairedCycles >= 3) {
-                    String bestName = null;
+                    long bestSince = Long.MAX_VALUE; String bestId = "";
                     for (String[] c : candidates) {
                         if (c[1].equals(localId)) continue;
-                        String name = serviceNameForId(c[1]);
-                        if (bestName == null || name.compareTo(bestName) < 0) { bestName = name; chosenUrl = c[0]; chosenId = c[1]; }
+                        long since = Long.parseLong(c[2]);
+                        if (chosenUrl == null || isOlder(since, c[1], bestSince, bestId)) { bestSince = since; bestId = c[1]; chosenUrl = c[0]; chosenId = c[1]; }
                     }
                 }
             } else missingPairedCycles = 0;
         } else {
-            String localName = getLocalServiceName(), bestName = null;
+            // A phone whose chat has history never switches away on its own (its chat would disappear).
+            if (localMessageCount() != 0) return;
+            long localSince = PairingCode.since(this), bestSince = Long.MAX_VALUE; String bestId = "";
             for (String[] c : candidates) {
                 if (c[1].equals(localId)) continue;
-                String name = serviceNameForId(c[1]);
-                if (name.compareTo(localName) < 0 && (bestName == null || name.compareTo(bestName) < 0)) { bestName = name; chosenUrl = c[0]; chosenId = c[1]; }
+                long since = Long.parseLong(c[2]);
+                if (!isOlder(since, c[1], localSince, localId)) continue;     // only join an older host
+                if (chosenUrl == null || isOlder(since, c[1], bestSince, bestId)) { bestSince = since; bestId = c[1]; chosenUrl = c[0]; chosenId = c[1]; }
             }
         }
         if (chosenUrl == null) return;
@@ -435,7 +450,32 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void joinNearby(String url) {
-            runOnUiThread(() -> joinNearbyUrl(url));
+            discoveryExecutor.execute(() -> {
+                String clean = url == null ? "" : url.trim();
+                if (!clean.matches("http://[0-9.]+:[0-9]{2,5}/?")) { reportJoin(false, "That address is not valid."); return; }
+                String normalized = clean.endsWith("/") ? clean : clean + "/";
+                String body = httpGet(normalized + "api/server-info", 2500);
+                String id = body == null ? "" : deviceIdFrom(body);
+                if (id.isEmpty()) { reportJoin(false, "Could not reach that device. Make sure its app is open."); return; }
+                handler.post(() -> {
+                    getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().putString("paired_host_id", id).apply();
+                    reportJoin(true, "Connecting…");
+                    joinNearbyUrl(normalized);
+                });
+            });
+        }
+
+        @JavascriptInterface
+        public void retryHost() {
+            runOnUiThread(() -> { hostFailures = 0; offlineShown = false; pageRequested = false; waitForServerAndLoad(); });
+        }
+
+        @JavascriptInterface
+        public void useOwnHost() {
+            runOnUiThread(() -> {
+                getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().remove("connected_url").remove("paired_host_id").apply();
+                recreate();
+            });
         }
 
         @JavascriptInterface
@@ -577,7 +617,7 @@ public class MainActivity extends Activity {
     }
 
     private void joinNearbyUrl(String url) {
-        if (url == null || !url.matches("http://[0-9.]+:8080/?") || webView == null) return;
+        if (url == null || !url.matches("http://[0-9.]+:[0-9]{2,5}/?") || webView == null) return;
         String normalized = url.endsWith("/") ? url : url + "/";
         boolean paired = !getSharedPreferences("esharex_connection", MODE_PRIVATE).getString("paired_host_id", "").isEmpty();
         if (!paired) stopDiscovery();
@@ -710,6 +750,19 @@ public class MainActivity extends Activity {
         releaseMulticastLock();
     }
 
+    private int hostFailures = 0;
+    private boolean offlineShown = false;
+
+    private void reportJoin(boolean ok, String message) {
+        runOnUiThread(() -> { if (webView != null) webView.evaluateJavascript("window.onJoinResult&&window.onJoinResult(" + ok + "," + org.json.JSONObject.quote(message) + ")", null); });
+    }
+
+    private void showHostOffline() {
+        if (webView == null) return;
+        String html = "<html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{margin:0;background:#070b12;color:#eaf0ff;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}.c{padding:28px;max-width:340px;text-align:center}h1{font-size:20px;margin:0 0 8px}p{color:#98a4b8;font-size:14px;line-height:1.5;margin:0 0 20px}button{display:block;width:100%;padding:14px;border:0;border-radius:14px;font-size:15px;font-weight:700;margin-top:10px}.a{background:#b9f26a;color:#0b1209}.b{background:#161e2b;color:#eaf0ff}</style></head><body><div class='c'><h1>Host not reachable</h1><p>The phone hosting this chat is offline or on another Wi-Fi. Your own chat history is still safe on this phone.</p><button class='a' onclick='AndroidBridge.retryHost()'>Try again</button><button class='b' onclick='AndroidBridge.useOwnHost()'>Use this phone as host</button></div></body></html>";
+        webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null);
+    }
+
     private void waitForServerAndLoad() {
         if (isFinishing() || pageRequested) return;
         executor.execute(() -> {
@@ -731,6 +784,8 @@ public class MainActivity extends Activity {
                     pageRequested = true;
                     webView.loadUrl(homeUrl);
                 } else if (!serverReady) {
+                    hostFailures++;
+                    if (!HOME_URL.equals(homeUrl) && hostFailures >= 2 && !offlineShown) { offlineShown = true; showHostOffline(); }
                     String paired = getSharedPreferences("esharex_connection", MODE_PRIVATE).getString("paired_host_id", "");
                     if (!paired.isEmpty() && discoveryListener == null) beginDiscovery();
                     handler.postDelayed(this::waitForServerAndLoad, 1800);

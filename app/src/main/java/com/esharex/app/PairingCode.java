@@ -24,4 +24,14 @@ final class PairingCode {
             return code;
         }
     }
+
+    /** When this phone first became a host. The oldest host stays the host; newer phones join it. */
+    static long since(Context context) {
+        synchronized (LOCK) {
+            SharedPreferences prefs = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            long since = prefs.getLong("host_since", 0L);
+            if (since <= 0L) { since = System.currentTimeMillis(); prefs.edit().putLong("host_since", since).apply(); }
+            return since;
+        }
+    }
 }
