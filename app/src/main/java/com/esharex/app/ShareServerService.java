@@ -156,7 +156,9 @@ public class ShareServerService extends Service {
     static void setPeers(java.util.Collection<String> urls) { long now = System.currentTimeMillis(); for (String u : urls) PEERS.put(u, now); }
     static void addPeer(String url) { if (url != null) PEERS.put(url, System.currentTimeMillis()); }
 
-    private final java.util.Map<String, Long> syncCursors = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<String, Long> syncCursors = new java.util.concurrent.ConcurrentHashMap<>();      // direct messages: full history
+    private final java.util.Map<String, Long> groupCursors = new java.util.concurrent.ConcurrentHashMap<>();     // group chat: only from when phones connect
+    private final java.util.Map<String, Long> lastContact = new java.util.concurrent.ConcurrentHashMap<>();
     private final ExecutorService syncExecutor = Executors.newSingleThreadExecutor();
     private volatile boolean syncRunning = false;
     private boolean syncStarted = false;
@@ -195,9 +197,14 @@ public class ShareServerService extends Service {
     private void syncWith(String peerUrl) {
         ShareHttpServer local = server;
         if (local == null) return;
+        long now = System.currentTimeMillis();
+        Long lastOk = lastContact.get(peerUrl);
+        if (lastOk == null || now - lastOk > 120000L) groupCursors.remove(peerUrl);      // a fresh connection starts a fresh group chat window
         Long saved = syncCursors.get(peerUrl);
         long since = saved == null ? 0L : saved;
-        String body = httpGetText(peerUrl + "api/sync/export?since=" + since, 1500, 8000, 30 * 1024 * 1024);
+        Long groupSaved = groupCursors.get(peerUrl);
+        long groupSince = groupSaved == null ? -1L : groupSaved;
+        String body = httpGetText(peerUrl + "api/sync/export?since=" + since + "&groupSince=" + groupSince, 1500, 8000, 30 * 1024 * 1024);
         if (body == null) return;
         try {
             org.json.JSONObject bundle = new org.json.JSONObject(body);
@@ -206,11 +213,16 @@ public class ShareServerService extends Service {
             if (peerId.isEmpty()) return;
             if (peerId.equals(ownId)) { PEERS.remove(peerUrl); return; }
             long maxSeq = bundle.optLong("maxSeq", 0L);
-            if (maxSeq < since) { syncCursors.put(peerUrl, 0L); return; }      // the other phone was reset: start over
+            if (maxSeq < since || (groupSince >= 0L && maxSeq < groupSince)) { syncCursors.remove(peerUrl); groupCursors.remove(peerUrl); return; }   // the other phone was reset
             boolean complete = fetchAttachments(peerUrl, bundle.optJSONArray("messages"), local.uploadsDirectory());
             complete &= fetchAttachments(peerUrl, bundle.optJSONArray("directMessages"), local.uploadsDirectory());
             local.mergeSync(bundle);
-            if (complete) syncCursors.put(peerUrl, Math.max(0L, maxSeq - 5L));
+            lastContact.put(peerUrl, now);
+            if (groupSince < 0L) groupCursors.put(peerUrl, maxSeq);                         // new connection: group chat continues from here
+            if (complete) {
+                syncCursors.put(peerUrl, Math.max(0L, maxSeq - 5L));
+                if (groupSince >= 0L) groupCursors.put(peerUrl, Math.max(groupSince, maxSeq - 2L));
+            }
             long peerSince = bundle.optLong("hostSince", Long.MAX_VALUE);
             if (syncRound % 15 == 1 && peerSince > 0L && peerSince < PairingCode.since(this)) {
                 String codeBody = httpGetText(peerUrl + "api/pair/code", 1500, 3000, 2048);

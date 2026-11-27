@@ -528,9 +528,11 @@ public class ShareHttpServer extends NanoHTTPD {
     private Response syncExport(IHTTPSession session) throws Exception {
         long since = 0L;
         try { since = Long.parseLong(session.getParms().getOrDefault("since", "0")); } catch (Exception ignored) {}
+        long groupSince = -1L;
+        try { groupSince = Long.parseLong(session.getParms().getOrDefault("groupSince", "-1")); } catch (Exception ignored) {}
         long maxSeq = syncCounter.get();
         JSONArray general = new JSONArray(), direct = new JSONArray(), people = new JSONArray();
-        for (JSONObject m : messages) if (m.optLong("syncSeq", 0L) > since) general.put(m);
+        if (groupSince >= 0L) for (JSONObject m : messages) if (m.optLong("syncSeq", 0L) > groupSince) general.put(m);
         for (JSONObject m : directMessages) if (m.optLong("syncSeq", 0L) > since) direct.put(m);
         for (JSONObject u : users.values()) people.put(u);
         String deviceId = context.getSharedPreferences("esharex_identity", Context.MODE_PRIVATE).getString("device_id", "");

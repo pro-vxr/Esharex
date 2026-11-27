@@ -4,11 +4,14 @@ Android-native local sharing app with an embedded NanoHTTPD server and a shared 
 
 ## 2.8.4 changes
 
-- **Every phone keeps its own chat.** Phones no longer switch to a "host". Each app always shows its own chat and history, and nearby phones sync in the background (messages, edits, people and uploaded files are copied both ways). Leaving the network never removes anything. Nothing is ever deleted by a sync.
-- **Automatic.** Phones find each other through NSD plus a Wi-Fi scan; there is no Connect button and no "Host not reachable" screen. The six-digit group code is only a fallback: entering any phone's code adds that phone, and all phones then show the same code (the oldest phone's code wins).
-- **Browsers** still open any phone's address and get that phone's synced copy of the chat.
-- Header: the menu button always stays on the right (Chat and Friends), and the upload card only uses the free space, so nothing jumps while uploading.
-- Sync endpoint: `GET /api/sync/export?since=<n>` (open on the local network like the rest of the API).
+- **Every phone keeps its own chat.** There is no "host" to switch to. Each app always shows its own chat and history; nearby phones sync in the background and nothing is ever deleted.
+- **Group chat:** old group messages are not copied. When phones connect, the group chat simply continues from that moment, so nobody's group gets flooded with someone else's backlog. After about two minutes apart, a reconnect starts a fresh window the same way.
+- **Direct messages:** full history is synced (union of both phones), so a conversation is never lost or split between phones. Uploaded files that belong to synced messages are copied too.
+- **Browsers** open any phone's address and see that phone's own copy of the chat.
+- **Works with no network:** you can join and chat on the phone itself with Wi-Fi/hotspot off (the page no longer treats "no internet" as "server offline"). The address shows as soon as Wi-Fi or a hotspot is on, and refreshes by itself.
+- Automatic discovery (NSD + Wi-Fi scan), no Connect button, no "Host not reachable" screen. The six-digit group code is only a fallback: entering any phone's code adds that phone, and all phones then show the same code.
+- Header: the menu button always stays on the right (Chat and Friends) and the upload card only uses free space, so nothing jumps while uploading.
+- Sync endpoint: `GET /api/sync/export?since=<n>&groupSince=<n>` (open on the local network like the rest of the API).
 
 ## 2.8.3 changes
 
