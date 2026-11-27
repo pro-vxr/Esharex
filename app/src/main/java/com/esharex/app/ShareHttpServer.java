@@ -45,7 +45,6 @@ public class ShareHttpServer extends NanoHTTPD {
         loadArray(dmFile, directMessages);
         initSyncSeq();
         loadUsers();
-        migrateUsersToStableUsernameIds();
         long maxSequence = 0L;
         for (JSONObject message : messages) maxSequence = Math.max(maxSequence, message.optLong("eventSeq", 0L));
         for (JSONObject message : directMessages) maxSequence = Math.max(maxSequence, message.optLong("eventSeq", 0L));
@@ -137,69 +136,43 @@ public class ShareHttpServer extends NanoHTTPD {
 
     private Response register(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session);
-        String requestedId = safeText(in.optString("id", ""), 80);
+        String id = safeText(in.optString("id", ""), 80);
         String name = safeText(in.optString("name", "Guest"), 32);
-        if (requestedId.isEmpty() || name.isEmpty())
+        String legacyId = safeText(in.optString("legacyId", ""), 80);
+        if (id.isEmpty() || name.isEmpty())
             return jsonError(Response.Status.BAD_REQUEST, "Device ID and name are required");
 
-        // Username-only identity: the normalized username maps to one stable account ID.
-        // This lets the same browser reconnect after its origin/IP changes. It is NOT secure
-        // authentication: anyone on the LAN who chooses the same username shares that identity.
-        String normalizedName = normalizeUsername(name);
-        if (normalizedName.isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "A display name is required");
-        String canonicalId = stableUsernameId(normalizedName);
-
+        // Identity belongs to the phone (or browser), not to the username: two people may use the same
+        // name and still have separate chats, and the same phone keeps its chat when the name changes.
         synchronized (users) {
-            JSONObject canonical = users.get(canonicalId);
-            ArrayList<String> aliases = new ArrayList<>();
-            List<JSONObject> legacyMatches = new ArrayList<>();
-            for (JSONObject candidate : new ArrayList<>(users.values())) {
-                String candidateId = candidate.optString("id", "");
-                if (!candidateId.isEmpty() && !candidateId.equals(canonicalId)
-                        && normalizedName.equals(normalizeUsername(candidate.optString("name", "")))) {
-                    legacyMatches.add(candidate);
-                }
-            }
-
-            if (canonical == null && !legacyMatches.isEmpty()) {
-                canonical = legacyMatches.get(0);
-                for (JSONObject candidate : legacyMatches) {
-                    if (candidate.optLong("joinedAt", Long.MAX_VALUE) < canonical.optLong("joinedAt", Long.MAX_VALUE))
-                        canonical = candidate;
-                }
-                // The selected legacy row itself must also be migrated to the stable ID.
-                aliases.add(canonical.optString("id", ""));
-            }
-            if (canonical == null) {
-                canonical = new JSONObject().put("joinedAt", System.currentTimeMillis());
-            }
-            for (JSONObject candidate : legacyMatches) {
-                if (candidate != canonical) {
-                    mergeReadState(canonical, candidate);
-                    aliases.add(candidate.optString("id", ""));
-                }
-            }
-            canonical.put("id", canonicalId);
             long now = System.currentTimeMillis();
-            long previousSeen = canonical.optLong("lastSeen", 0L);
-            canonical.put("name", name).put("lastSeen", now);
-            if (previousSeen == 0L || now - previousSeen > 45000L || !canonical.has("notificationCursorSeq"))
-                canonical.put("notificationCursorSeq", currentEventSequence());
-
-            // Store the canonical row before migrating references so read-state migration can
-            // find the destination. Old aliases are removed only after their message IDs move.
-            users.put(canonicalId, canonical);
-            for (String alias : new LinkedHashSet<>(aliases)) {
-                if (alias.isEmpty() || alias.equals(canonicalId)) continue;
-                migrateUserReferences(alias, canonicalId);
-                users.remove(alias);
+            JSONObject user = users.get(id);
+            boolean upgraded = false;
+            if (user == null && !legacyId.isEmpty() && !legacyId.equals(id)) {
+                JSONObject legacy = users.get(legacyId);                 // old username-based identity of this phone
+                if (legacy != null) { user = new JSONObject(legacy.toString()); upgraded = true; }
             }
+            if (user == null) user = new JSONObject().put("joinedAt", now);
+            String previousName = user.optString("name", "");
+            long previousSeen = user.optLong("lastSeen", 0L);
+            user.put("id", id).put("name", name).put("lastSeen", now);
+            if (previousSeen == 0L || now - previousSeen > 45000L || !user.has("notificationCursorSeq"))
+                user.put("notificationCursorSeq", currentEventSequence());
+            users.put(id, user);
+            if (upgraded) { migrateUserReferences(legacyId, id); users.remove(legacyId); }
+            boolean renamed = !previousName.isEmpty() && !previousName.equals(name);
+            if (renamed) renameUserInMessages(id, name);
             saveUsers();
-            saveArray(messagesFile, messages);
-            saveArray(dmFile, directMessages);
-            return json(new JSONObject().put("success", true).put("canonicalId", canonicalId)
-                    .put("user", canonical).put("mergedRecords", new LinkedHashSet<>(aliases).size()));
+            if (upgraded) { saveArray(messagesFile, messages); saveArray(dmFile, directMessages); }
+            return json(new JSONObject().put("success", true).put("canonicalId", id).put("user", user).put("mergedRecords", upgraded ? 1 : 0));
         }
+    }
+
+    private void renameUserInMessages(String id, String name) throws Exception {
+        for (JSONObject msg : messages) if (id.equals(msg.optString("userId")) && msg.has("username")) msg.put("username", name);
+        for (JSONObject msg : directMessages) if (id.equals(msg.optString("from")) && msg.has("username")) msg.put("username", name);
+        saveArray(messagesFile, messages);
+        saveArray(dmFile, directMessages);
     }
 
     private String normalizeUsername(String name) {
@@ -366,7 +339,7 @@ public class ShareHttpServer extends NanoHTTPD {
 
     private Response handleChat(IHTTPSession session) throws Exception {
         JSONObject input = readBody(session);
-        String text = safeMessageText(input.optString("text", ""), 4000);
+        String text = safeMessageText(input.optString("text", ""), 20000);
         if (text.trim().isEmpty()) return jsonError(Response.Status.BAD_REQUEST, "Message is empty");
         String id = input.optString("userId", "");
         JSONObject user = users.get(id);
@@ -383,7 +356,7 @@ public class ShareHttpServer extends NanoHTTPD {
         JSONObject in = readBody(session);
         String id = in.optString("id", "");
         String userId = in.optString("userId", "");
-        String text = safeMessageText(in.optString("text", ""), 4000);
+        String text = safeMessageText(in.optString("text", ""), 20000);
         if (id.isEmpty() || userId.isEmpty() || text.trim().isEmpty())
             return jsonError(Response.Status.BAD_REQUEST, "Message ID and text are required");
         for (JSONObject msg : messages) {
@@ -399,7 +372,7 @@ public class ShareHttpServer extends NanoHTTPD {
     }
     private Response sendDirectMessage(IHTTPSession session) throws Exception {
         JSONObject in = readBody(session);
-        String from = in.optString("from",""), to = in.optString("to",""), text = safeMessageText(in.optString("text",""),4000);
+        String from = in.optString("from",""), to = in.optString("to",""), text = safeMessageText(in.optString("text",""),20000);
         if (from.isEmpty() || to.isEmpty() || from.equals(to) || text.trim().isEmpty()) return jsonError(Response.Status.BAD_REQUEST,"Valid sender, recipient and message are required");
         JSONObject sender = users.get(from), recipient = users.get(to);
         if (sender == null || recipient == null) return jsonError(Response.Status.NOT_FOUND,"User not found");
@@ -428,7 +401,7 @@ public class ShareHttpServer extends NanoHTTPD {
         JSONObject in = readBody(session);
         String id = in.optString("id", "");
         String from = in.optString("from", "");
-        String text = safeMessageText(in.optString("text", ""), 4000);
+        String text = safeMessageText(in.optString("text", ""), 20000);
         if (id.isEmpty() || from.isEmpty() || text.trim().isEmpty())
             return jsonError(Response.Status.BAD_REQUEST, "Message ID and text are required");
         for (JSONObject msg : directMessages) {
@@ -629,7 +602,7 @@ public class ShareHttpServer extends NanoHTTPD {
             JSONObject remote = incoming.optJSONObject(i);
             if (remote == null) continue;
             String id = remote.optString("id", "");
-            if (id.isEmpty()) continue;
+            if (id.isEmpty() || id.matches("user-[0-9a-f]{64}")) continue;     // old username-based identities are not shared
             try {
                 JSONObject existing = users.get(id);
                 if (existing == null) { users.put(id, new JSONObject(remote.toString())); changed++; }
