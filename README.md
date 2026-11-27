@@ -4,14 +4,11 @@ Android-native local sharing app with an embedded NanoHTTPD server and a shared 
 
 ## 2.8.4 changes
 
-- **Oldest host wins:** every host reports when it first started. A phone that already has chat history never switches hosts on its own; a phone with an empty chat joins the oldest host it finds. This stops a new phone from taking over an old one and hiding its history (history is never deleted; disconnecting brings it back).
-- **Connect button:** shows "Connecting…", checks the device is reachable, remembers it as the host, and reports success or the reason it failed.
-- **No more blank screen:** if the host you joined is offline, you get a "Host not reachable" screen with Try again and Use this phone as host.
-- Header: the chat title keeps its size while an upload card is showing.
-
-- Chat: only the message list keeps a box. The message field and send button float underneath it with no surrounding panel, bar or divider.
-- Video bubbles use the same size limits as images, so portrait videos are short thumbnails instead of tall cards.
-- Documents: one dark box with the icon on the left (vertically centred), the filename and extension on top and Download at the bottom right.
+- **Every phone keeps its own chat.** Phones no longer switch to a "host". Each app always shows its own chat and history, and nearby phones sync in the background (messages, edits, people and uploaded files are copied both ways). Leaving the network never removes anything. Nothing is ever deleted by a sync.
+- **Automatic.** Phones find each other through NSD plus a Wi-Fi scan; there is no Connect button and no "Host not reachable" screen. The six-digit group code is only a fallback: entering any phone's code adds that phone, and all phones then show the same code (the oldest phone's code wins).
+- **Browsers** still open any phone's address and get that phone's synced copy of the chat.
+- Header: the menu button always stays on the right (Chat and Friends), and the upload card only uses the free space, so nothing jumps while uploading.
+- Sync endpoint: `GET /api/sync/export?since=<n>` (open on the local network like the rest of the API).
 
 ## 2.8.3 changes
 

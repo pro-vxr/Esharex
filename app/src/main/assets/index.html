@@ -822,7 +822,7 @@ async function refreshPublicMemberCount(){try{const users=await api('/api/users'
 function toggleGuide(){const c=$('guideContent'),b=$('guideToggle');c.hidden=!c.hidden;b.textContent=c.hidden?'Show':'Hide'}
 function renderNearbyDevices(items){const box=$('nearbyDevices');if(!box)return;box.innerHTML='';(items||[]).forEach(d=>{const card=document.createElement('div');card.className='panel friend-card nearby-friend';const avatar=document.createElement('div');avatar.className='avatar';avatar.textContent='eX';const info=document.createElement('div');info.className='personinfo';const name=document.createElement('strong');name.textContent=d.name||'Nearby eShareX';const meta=document.createElement('small');meta.textContent='Nearby device · '+d.host;info.append(name,meta);const btn=document.createElement('button');btn.className='btn';btn.textContent='Connect';btn.onclick=()=>{if(!(window.AndroidBridge&&AndroidBridge.joinNearby))return toast('Open this in the eShareX app to connect');if(btn.disabled)return;btn.disabled=true;btn.textContent='Connecting…';window.__joinBtn=btn;AndroidBridge.joinNearby('http://'+d.host+':'+d.port+'/');setTimeout(()=>{if(btn.isConnected&&btn.disabled){btn.disabled=false;btn.textContent='Connect'}},12000)};card.append(avatar,info,btn);box.appendChild(card)})}
 function startNearbyDiscovery(){if(!isNative||!window.AndroidBridge||!AndroidBridge.startDiscovery)return;if(!window.__esharexDiscoveryStarted){window.__esharexDiscoveryStarted=true;AndroidBridge.startDiscovery()}}
-window.onNearbyDevices=function(json){try{renderNearbyDevices(JSON.parse(json))}catch(_){}}
+window.onNearbyDevices=function(json){}
 window.onJoinResult=function(ok,msg){toast(msg);const b=window.__joinBtn;if(!ok&&b&&b.isConnected){b.disabled=false;b.textContent='Connect'}}
 
 
@@ -1129,6 +1129,12 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* header: title never wraps or resizes while the upload card shows */
 .chat-context .context-title{flex:0 1 auto;min-width:0;max-width:46%}
 .chat-context .context-title strong,.chat-context .context-title small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upload-slot{flex:1 1 0!important;min-width:96px!important;max-width:260px}
+
+/* phones connect and sync automatically: no nearby-device list, menu buttons stay on the right */
+.nearby-panel{display:none!important}
+.chat-context>button:last-child{margin-left:auto}
+.chat-context .context-title{flex:0 1 auto;min-width:0;max-width:58%}
 .upload-slot{flex:1 1 0!important;min-width:96px!important;max-width:260px}
 </style>
 

@@ -23,6 +23,7 @@ public class ShareHttpServer extends NanoHTTPD {
     private final List<JSONObject> directMessages = new CopyOnWriteArrayList<>();
     private final Map<String, JSONObject> users = new java.util.concurrent.ConcurrentHashMap<>();
     private final AtomicLong eventSequence = new AtomicLong(0L);
+    private final AtomicLong syncCounter = new AtomicLong(0L);
     private final File messagesFile, dmFile, usersFile;
 
     public ShareHttpServer(Context context, File dataDir) {
@@ -36,6 +37,7 @@ public class ShareHttpServer extends NanoHTTPD {
         usersFile = new File(dataDir, "users.json");
         loadArray(messagesFile, messages);
         loadArray(dmFile, directMessages);
+        initSyncSeq();
         loadUsers();
         migrateUsersToStableUsernameIds();
         long maxSequence = 0L;
@@ -51,6 +53,7 @@ public class ShareHttpServer extends NanoHTTPD {
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
             if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.8.4"));
             if ("/api/pair/info".equals(uri) && Method.GET.equals(method)) return pairInfo(session);
+            if ("/api/sync/export".equals(uri) && Method.GET.equals(method)) return syncExport(session);
             if ("/api/pair/code".equals(uri) && Method.GET.equals(method)) return json(new JSONObject().put("code", PairingCode.get(context)));
             if ("/api/server-info".equals(uri)) {
                 String ip = getLocalIp();
@@ -379,7 +382,7 @@ public class ShareHttpServer extends NanoHTTPD {
             if (id.equals(msg.optString("id")) && userId.equals(msg.optString("userId"))) {
                 msg.put("text", text);
                 msg.put("edited", true);
-                msg.put("editedAt", System.currentTimeMillis());
+                msg.put("editedAt", System.currentTimeMillis()); touchSync(msg);
                 saveArray(messagesFile, messages);
                 return json(new JSONObject().put("success", true).put("message", msg));
             }
@@ -424,7 +427,7 @@ public class ShareHttpServer extends NanoHTTPD {
             if (id.equals(msg.optString("id")) && from.equals(msg.optString("from"))) {
                 msg.put("text", text);
                 msg.put("edited", true);
-                msg.put("editedAt", System.currentTimeMillis());
+                msg.put("editedAt", System.currentTimeMillis()); touchSync(msg);
                 saveArray(dmFile, directMessages);
                 return json(new JSONObject().put("success", true).put("message", msg));
             }
@@ -506,6 +509,100 @@ public class ShareHttpServer extends NanoHTTPD {
         } else addMessage(msg);
         return json(new JSONObject().put("success",true).put("message",msg));
     }
+    // ---------- phone-to-phone sync: every phone keeps its own copy of the chat ----------
+    File uploadsDirectory() { return uploadsDir; }
+
+    private void initSyncSeq() {
+        long next = 0L;
+        for (JSONObject m : messages) next = Math.max(next, m.optLong("syncSeq", 0L));
+        for (JSONObject m : directMessages) next = Math.max(next, m.optLong("syncSeq", 0L));
+        for (JSONObject m : messages) if (!m.has("syncSeq")) { try { m.put("syncSeq", ++next); } catch (Exception ignored) {} }
+        for (JSONObject m : directMessages) if (!m.has("syncSeq")) { try { m.put("syncSeq", ++next); } catch (Exception ignored) {} }
+        syncCounter.set(next);
+    }
+
+    private void touchSync(JSONObject m) {
+        try { m.put("syncSeq", syncCounter.incrementAndGet()); } catch (Exception ignored) {}
+    }
+
+    private Response syncExport(IHTTPSession session) throws Exception {
+        long since = 0L;
+        try { since = Long.parseLong(session.getParms().getOrDefault("since", "0")); } catch (Exception ignored) {}
+        long maxSeq = syncCounter.get();
+        JSONArray general = new JSONArray(), direct = new JSONArray(), people = new JSONArray();
+        for (JSONObject m : messages) if (m.optLong("syncSeq", 0L) > since) general.put(m);
+        for (JSONObject m : directMessages) if (m.optLong("syncSeq", 0L) > since) direct.put(m);
+        for (JSONObject u : users.values()) people.put(u);
+        String deviceId = context.getSharedPreferences("esharex_identity", Context.MODE_PRIVATE).getString("device_id", "");
+        return json(new JSONObject().put("deviceId", deviceId).put("hostSince", PairingCode.since(context)).put("maxSeq", maxSeq)
+            .put("messages", general).put("directMessages", direct).put("users", people));
+    }
+
+    /** Adds messages / edits / people that another phone has and this one does not. Never removes anything. */
+    int mergeSync(JSONObject bundle) {
+        int changed = 0;
+        synchronized (eventSequence) {
+            changed += mergeMessageList(bundle.optJSONArray("messages"), messages, messagesFile);
+            changed += mergeMessageList(bundle.optJSONArray("directMessages"), directMessages, dmFile);
+            changed += mergeUsers(bundle.optJSONArray("users"));
+        }
+        return changed;
+    }
+
+    private int mergeMessageList(JSONArray incoming, List<JSONObject> target, File file) {
+        if (incoming == null || incoming.length() == 0) return 0;
+        java.util.Map<String, JSONObject> byId = new java.util.HashMap<>();
+        for (JSONObject m : target) byId.put(m.optString("id"), m);
+        int changed = 0;
+        for (int i = 0; i < incoming.length(); i++) {
+            JSONObject remote = incoming.optJSONObject(i);
+            if (remote == null) continue;
+            String id = remote.optString("id", "");
+            if (id.isEmpty()) continue;
+            try {
+                JSONObject existing = byId.get(id);
+                if (existing == null) {
+                    JSONObject copy = new JSONObject(remote.toString());
+                    copy.remove("eventSeq");
+                    copy.remove("syncSeq");
+                    stampEventSequence(copy);                      // new local event number + sync number
+                    long ts = copy.optLong("timestamp", 0L);
+                    int index = target.size();
+                    while (index > 0 && target.get(index - 1).optLong("timestamp", 0L) > ts) index--;
+                    target.add(index, copy);
+                    byId.put(id, copy);
+                    changed++;
+                } else if (remote.optLong("editedAt", 0L) > existing.optLong("editedAt", 0L)) {
+                    existing.put("text", remote.opt("text"));
+                    existing.put("edited", true);
+                    existing.put("editedAt", remote.optLong("editedAt", 0L));
+                    touchSync(existing);
+                    changed++;
+                }
+            } catch (Exception ignored) {}
+        }
+        if (changed > 0) { trim(target, 500); saveArray(file, target); }
+        return changed;
+    }
+
+    private int mergeUsers(JSONArray incoming) {
+        if (incoming == null) return 0;
+        int changed = 0;
+        for (int i = 0; i < incoming.length(); i++) {
+            JSONObject remote = incoming.optJSONObject(i);
+            if (remote == null) continue;
+            String id = remote.optString("id", "");
+            if (id.isEmpty()) continue;
+            try {
+                JSONObject existing = users.get(id);
+                if (existing == null) { users.put(id, new JSONObject(remote.toString())); changed++; }
+                else if (remote.optLong("lastSeen", 0L) > existing.optLong("lastSeen", 0L)) { existing.put("lastSeen", remote.optLong("lastSeen", 0L)); changed++; }
+            } catch (Exception ignored) {}
+        }
+        if (changed > 0) usersDirty = true;
+        return changed;
+    }
+
     private void addMessage(JSONObject msg){
         synchronized (eventSequence) {
             stampEventSequence(msg);
@@ -514,7 +611,7 @@ public class ShareHttpServer extends NanoHTTPD {
     }
     private void stampEventSequence(JSONObject msg) {
         if (msg == null || msg.has("eventSeq")) return;
-        try { msg.put("eventSeq", eventSequence.incrementAndGet()); }
+        try { msg.put("eventSeq", eventSequence.incrementAndGet()); touchSync(msg); }
         catch (Exception ignored) {}
     }
     private long currentEventSequence() {

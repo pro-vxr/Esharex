@@ -143,12 +143,141 @@ public class ShareServerService extends Service {
                 created.start();
                 if (destroyed) { created.stop(); return; }
                 server = created;
-                handler.post(this::advertiseService);
+                handler.post(() -> { advertiseService(); startPeerSync(); });
             } catch (Exception e) {
                 android.util.Log.e("eShareX", "Could not start server", e);
                 handler.post(this::stopSelf);
             } finally { serverStarting.set(false); }
         });
+    }
+
+    // ---------- phone-to-phone sync: each phone keeps its own chat and swaps what the other is missing ----------
+    private static final java.util.Map<String, Long> PEERS = new java.util.concurrent.ConcurrentHashMap<>();
+    static void setPeers(java.util.Collection<String> urls) { long now = System.currentTimeMillis(); for (String u : urls) PEERS.put(u, now); }
+    static void addPeer(String url) { if (url != null) PEERS.put(url, System.currentTimeMillis()); }
+
+    private final java.util.Map<String, Long> syncCursors = new java.util.concurrent.ConcurrentHashMap<>();
+    private final ExecutorService syncExecutor = Executors.newSingleThreadExecutor();
+    private volatile boolean syncRunning = false;
+    private boolean syncStarted = false;
+    private int syncRound = 0;
+    private final Runnable syncTick = new Runnable() {
+        @Override public void run() {
+            if (destroyed) return;
+            if (!syncRunning && server != null) {
+                syncRunning = true;
+                syncExecutor.execute(() -> {
+                    try { syncAllPeers(); }
+                    catch (Exception e) { android.util.Log.w("eShareX", "Sync failed", e); }
+                    finally { syncRunning = false; }
+                });
+            }
+            handler.postDelayed(this, 4000L);
+        }
+    };
+
+    private void startPeerSync() {
+        if (syncStarted) return;
+        syncStarted = true;
+        handler.postDelayed(syncTick, 3000L);
+    }
+
+    private void syncAllPeers() {
+        syncRound++;
+        long now = System.currentTimeMillis();
+        for (java.util.Map.Entry<String, Long> entry : new java.util.ArrayList<>(PEERS.entrySet())) {
+            if (destroyed) return;
+            if (now - entry.getValue() > 15L * 60L * 1000L) { PEERS.remove(entry.getKey()); continue; }
+            syncWith(entry.getKey());
+        }
+    }
+
+    private void syncWith(String peerUrl) {
+        ShareHttpServer local = server;
+        if (local == null) return;
+        Long saved = syncCursors.get(peerUrl);
+        long since = saved == null ? 0L : saved;
+        String body = httpGetText(peerUrl + "api/sync/export?since=" + since, 1500, 8000, 30 * 1024 * 1024);
+        if (body == null) return;
+        try {
+            org.json.JSONObject bundle = new org.json.JSONObject(body);
+            String ownId = getSharedPreferences("esharex_identity", MODE_PRIVATE).getString("device_id", "");
+            String peerId = bundle.optString("deviceId", "");
+            if (peerId.isEmpty()) return;
+            if (peerId.equals(ownId)) { PEERS.remove(peerUrl); return; }
+            long maxSeq = bundle.optLong("maxSeq", 0L);
+            if (maxSeq < since) { syncCursors.put(peerUrl, 0L); return; }      // the other phone was reset: start over
+            boolean complete = fetchAttachments(peerUrl, bundle.optJSONArray("messages"), local.uploadsDirectory());
+            complete &= fetchAttachments(peerUrl, bundle.optJSONArray("directMessages"), local.uploadsDirectory());
+            local.mergeSync(bundle);
+            if (complete) syncCursors.put(peerUrl, Math.max(0L, maxSeq - 5L));
+            long peerSince = bundle.optLong("hostSince", Long.MAX_VALUE);
+            if (syncRound % 15 == 1 && peerSince > 0L && peerSince < PairingCode.since(this)) {
+                String codeBody = httpGetText(peerUrl + "api/pair/code", 1500, 3000, 2048);
+                if (codeBody != null) PairingCode.adopt(this, new org.json.JSONObject(codeBody).optString("code", ""));
+            }
+        } catch (Exception e) {
+            android.util.Log.w("eShareX", "Sync with peer failed", e);
+        }
+    }
+
+    private boolean fetchAttachments(String peerUrl, org.json.JSONArray items, File dir) {
+        if (items == null) return true;
+        boolean complete = true;
+        for (int i = items.length() - 1; i >= 0; i--) {
+            org.json.JSONObject item = items.optJSONObject(i);
+            if (item == null) continue;
+            String url = item.optString("url", "");
+            if (!url.startsWith("/uploads/")) continue;
+            String name = url.substring("/uploads/".length());
+            int q = name.indexOf('?');
+            if (q >= 0) name = name.substring(0, q);
+            if (!name.matches("[A-Za-z0-9._-]{1,200}") || name.contains("..")) { items.remove(i); continue; }
+            File target = new File(dir, name);
+            if (target.exists()) continue;
+            if (!downloadFile(peerUrl + "uploads/" + name, target)) { items.remove(i); complete = false; }
+        }
+        return complete;
+    }
+
+    private boolean downloadFile(String urlString, File target) {
+        java.net.HttpURLConnection c = null;
+        File part = new File(target.getParentFile(), target.getName() + ".part");
+        try {
+            c = (java.net.HttpURLConnection) new java.net.URL(urlString).openConnection();
+            c.setConnectTimeout(2000); c.setReadTimeout(30000); c.setUseCaches(false);
+            if (c.getResponseCode() != 200) return false;
+            long limit = 130L * 1024L * 1024L, total = 0L;
+            try (java.io.InputStream in = c.getInputStream(); java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    total += n;
+                    if (total > limit) throw new java.io.IOException("too large");
+                    out.write(buf, 0, n);
+                }
+            }
+            return part.renameTo(target);
+        } catch (Exception e) {
+            part.delete();
+            return false;
+        } finally { if (c != null) c.disconnect(); }
+    }
+
+    private String httpGetText(String urlString, int connectMs, int readMs, int maxBytes) {
+        java.net.HttpURLConnection c = null;
+        try {
+            c = (java.net.HttpURLConnection) new java.net.URL(urlString).openConnection();
+            c.setConnectTimeout(connectMs); c.setReadTimeout(readMs); c.setUseCaches(false);
+            if (c.getResponseCode() != 200) return null;
+            java.io.InputStream in = c.getInputStream();
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = in.read(buf)) > 0) { out.write(buf, 0, n); if (out.size() > maxBytes) return null; }
+            return out.toString("UTF-8");
+        } catch (Exception e) { return null; }
+        finally { if (c != null) c.disconnect(); }
     }
 
     private void sendPresenceHeartbeat() {
@@ -264,6 +393,7 @@ public class ShareServerService extends Service {
         handler.removeCallbacks(monitorTask);
         monitorExecutor.shutdownNow();
         startExecutor.shutdownNow();
+        syncExecutor.shutdownNow();
         if (nsdManager != null && registrationListener != null) { try { nsdManager.unregisterService(registrationListener); } catch (Exception ignored) {} }
         if (server != null) server.stop();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();

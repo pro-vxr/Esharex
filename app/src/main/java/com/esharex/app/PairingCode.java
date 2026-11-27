@@ -34,4 +34,12 @@ final class PairingCode {
             return since;
         }
     }
+
+    /** Take over another phone's group code so every phone in the group shows the same one. */
+    static void adopt(Context context, String code) {
+        if (code == null || !code.matches("[0-9]{6}")) return;
+        synchronized (LOCK) {
+            context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, code).apply();
+        }
+    }
 }

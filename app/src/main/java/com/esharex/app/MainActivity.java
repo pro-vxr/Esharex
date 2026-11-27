@@ -189,12 +189,6 @@ public class MainActivity extends Activity {
     }
 
     private void runDiscoveryCycle() {
-        android.content.SharedPreferences conn = getSharedPreferences("esharex_connection", MODE_PRIVATE);
-        String pairedId = conn.getString("paired_host_id", "");
-        boolean joinedRemote = !HOME_URL.equals(homeUrl);
-        if (joinedRemote && pairedId.isEmpty()) return;               // joined manually: nothing to look for
-        if (joinedRemote && pageRequested && httpGet(homeUrl + "api/health", 1500) != null) { missingPairedCycles = 0; return; }
-
         List<String[]> candidates = new ArrayList<>();   // {url, deviceId, hostSince, messages}
         java.util.Set<String> seen = new java.util.HashSet<>();
         List<String[]> endpoints = new ArrayList<>();
@@ -205,44 +199,14 @@ public class MainActivity extends Activity {
             }
         }
         for (String[] ep : endpoints) addCandidate(candidates, seen, ep[0], ep[1], httpGet("http://" + ep[0] + ":" + ep[1] + "/api/server-info", 1500));
-        String localId = getStableDeviceId();
-        boolean needScan = candidates.isEmpty() || (!pairedId.isEmpty() && !seen.contains(pairedId));
-        if (needScan) for (String[] hit : scanForServers("/api/server-info", false, 450)) addCandidate(candidates, seen, hit[0], "8080", hit[1]);
-
-        String chosenUrl = null, chosenId = null;
-        if (!pairedId.isEmpty()) {
-            for (String[] c : candidates) if (c[1].equals(pairedId)) { chosenUrl = c[0]; chosenId = c[1]; break; }
-            if (chosenUrl == null) {
-                // Paired host is gone. If it stays missing and another host exists, follow the oldest one.
-                missingPairedCycles++;
-                if (joinedRemote && missingPairedCycles >= 3) {
-                    long bestSince = Long.MAX_VALUE; String bestId = "";
-                    for (String[] c : candidates) {
-                        if (c[1].equals(localId)) continue;
-                        long since = Long.parseLong(c[2]);
-                        if (chosenUrl == null || isOlder(since, c[1], bestSince, bestId)) { bestSince = since; bestId = c[1]; chosenUrl = c[0]; chosenId = c[1]; }
-                    }
-                }
-            } else missingPairedCycles = 0;
-        } else {
-            // A phone whose chat has history never switches away on its own (its chat would disappear).
-            if (localMessageCount() != 0) return;
-            long localSince = PairingCode.since(this), bestSince = Long.MAX_VALUE; String bestId = "";
-            for (String[] c : candidates) {
-                if (c[1].equals(localId)) continue;
-                long since = Long.parseLong(c[2]);
-                if (!isOlder(since, c[1], localSince, localId)) continue;     // only join an older host
-                if (chosenUrl == null || isOlder(since, c[1], bestSince, bestId)) { bestSince = since; bestId = c[1]; chosenUrl = c[0]; chosenId = c[1]; }
-            }
+        // The Wi-Fi scan also runs now and then, so phones are found even where NSD is blocked.
+        if (candidates.isEmpty() || cycleCount % 4 == 0) {
+            for (String[] hit : scanForServers("/api/server-info", false, 450)) addCandidate(candidates, seen, hit[0], "8080", hit[1]);
         }
-        if (chosenUrl == null) return;
-        final String url = chosenUrl, id = chosenId;
-        handler.post(() -> {
-            if (isFinishing()) return;
-            getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().putString("paired_host_id", id).apply();
-            missingPairedCycles = 0;
-            joinNearbyUrl(url);
-        });
+        String localId = getStableDeviceId();
+        List<String> urls = new ArrayList<>();
+        for (String[] c : candidates) if (!c[1].equals(localId)) urls.add(c[0]);
+        ShareServerService.setPeers(urls);
     }
 
     @Override
@@ -254,7 +218,8 @@ public class MainActivity extends Activity {
 
         android.content.SharedPreferences monitorPrefs = getSharedPreferences("esharex_notification_monitor", MODE_PRIVATE);
         String savedHost = getSharedPreferences("esharex_connection", MODE_PRIVATE).getString("connected_url", "");
-        if (savedHost != null && savedHost.matches("http://[0-9.]+:8080/?")) homeUrl = savedHost.endsWith("/") ? savedHost : savedHost + "/";
+        // Every phone always uses its own chat; other phones are synced in the background.
+        getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().remove("connected_url").remove("paired_host_id").apply();
         Intent service = new Intent(this, ShareServerService.class);
         if (!HOME_URL.equals(homeUrl)) {
             service.setAction(ShareServerService.ACTION_MONITOR);
@@ -609,9 +574,10 @@ public class MainActivity extends Activity {
                 if (!id.isEmpty()) { target = "http://" + hit[0] + ":8080/"; hostId = id; break; }
             }
             if (target != null) {
-                final String t = target, h = hostId;
-                getSharedPreferences("esharex_connection", MODE_PRIVATE).edit().putString("paired_host_id", h).apply();
-                handler.post(() -> { notifyPairResult(true, "Host found. Connecting…"); joinNearbyUrl(t); });
+                final String t = target;
+                PairingCode.adopt(MainActivity.this, code);     // same code on every phone from now on
+                ShareServerService.addPeer(t);
+                handler.post(() -> notifyPairResult(true, "Connected. Your chats are syncing."));
             } else notifyPairResult(false, "No host found with that code. Check the code and that both phones share the same Wi-Fi or hotspot.");
         });
     }
