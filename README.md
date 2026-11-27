@@ -10,6 +10,8 @@ Android-native local sharing app with an embedded NanoHTTPD server and a shared 
 - **Browsers** open any phone's address and see that phone's own copy of the chat.
 - **Works with no network:** you can join and chat on the phone itself with Wi-Fi/hotspot off (the page no longer treats "no internet" as "server offline"). The address shows as soon as Wi-Fi or a hotspot is on, and refreshes by itself.
 - Automatic discovery (NSD + Wi-Fi scan), no Connect button, no "Host not reachable" screen. The six-digit group code is only a fallback: entering any phone's code adds that phone, and all phones then show the same code.
+- **Faster messages:** the page now gets an instant "something changed" signal from its own phone (`GET /api/events/wait`, a long-poll), so new messages show up right away instead of on the next 5-second poll. When a phone gets a new message it also pokes nearby phones (`GET /api/sync/poke`), so they sync immediately instead of waiting for their 3-second timer. A Wi-Fi lock keeps Wi-Fi awake while the service runs, so delivery stays quick with the screen off.
+- The page no longer stops updating when the phone has no internet (the leftover `navigator.onLine` checks are gone).
 - Header: the menu button always stays on the right (Chat and Friends) and the upload card only uses free space, so nothing jumps while uploading.
 - Sync endpoint: `GET /api/sync/export?since=<n>&groupSince=<n>` (open on the local network like the rest of the API).
 

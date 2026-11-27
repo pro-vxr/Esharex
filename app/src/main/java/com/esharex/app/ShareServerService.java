@@ -45,6 +45,7 @@ public class ShareServerService extends Service {
     private static final int FOREGROUND_ID = 11;
     private volatile ShareHttpServer server;
     private PowerManager.WakeLock wakeLock;
+    private android.net.wifi.WifiManager.WifiLock wifiLock;
     private NsdManager nsdManager;
     private NsdManager.RegistrationListener registrationListener;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -85,6 +86,14 @@ public class ShareServerService extends Service {
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "eShareX:HostLock");
         wakeLock.acquire(); // released in onDestroy
+        try {   // keep Wi-Fi awake with the screen off so messages arrive quickly
+            android.net.wifi.WifiManager wm = (android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+            if (wm != null) {
+                wifiLock = wm.createWifiLock(android.os.Build.VERSION.SDK_INT >= 29 ? android.net.wifi.WifiManager.WIFI_MODE_FULL_LOW_LATENCY : android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "eShareX:WifiLock");
+                wifiLock.setReferenceCounted(false);
+                wifiLock.acquire();
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -143,6 +152,7 @@ public class ShareServerService extends Service {
                 created.start();
                 if (destroyed) { created.stop(); return; }
                 server = created;
+                created.setListeners(this::pokePeers, this::triggerSyncNow);
                 handler.post(() -> { advertiseService(); startPeerSync(); });
             } catch (Exception e) {
                 android.util.Log.e("eShareX", "Could not start server", e);
@@ -166,17 +176,35 @@ public class ShareServerService extends Service {
     private final Runnable syncTick = new Runnable() {
         @Override public void run() {
             if (destroyed) return;
-            if (!syncRunning && server != null) {
-                syncRunning = true;
-                syncExecutor.execute(() -> {
-                    try { syncAllPeers(); }
-                    catch (Exception e) { android.util.Log.w("eShareX", "Sync failed", e); }
-                    finally { syncRunning = false; }
-                });
-            }
-            handler.postDelayed(this, 4000L);
+            triggerSyncNow();
+            handler.postDelayed(this, 3000L);
         }
     };
+
+    private volatile boolean syncAgain = false;
+    private final ExecutorService pokeExecutor = Executors.newSingleThreadExecutor();
+    private final java.util.concurrent.atomic.AtomicBoolean pokePending = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    /** Runs a sync round now (or right after the current one). Called by the timer, and when a nearby phone pokes us. */
+    private synchronized void triggerSyncNow() {
+        if (server == null || destroyed) return;
+        if (syncRunning) { syncAgain = true; return; }
+        syncRunning = true;
+        syncExecutor.execute(() -> {
+            try { do { syncAgain = false; syncAllPeers(); } while (syncAgain && !destroyed); }
+            catch (Exception e) { android.util.Log.w("eShareX", "Sync failed", e); }
+            finally { syncRunning = false; }
+        });
+    }
+
+    /** Tells nearby phones something new is here, so they pull it immediately instead of waiting for their timer. */
+    private void pokePeers() {
+        if (destroyed || PEERS.isEmpty() || !pokePending.compareAndSet(false, true)) return;
+        pokeExecutor.execute(() -> {
+            pokePending.set(false);
+            for (String url : new java.util.ArrayList<>(PEERS.keySet())) httpGetText(url + "api/sync/poke", 400, 800, 256);
+        });
+    }
 
     private void startPeerSync() {
         if (syncStarted) return;
@@ -406,9 +434,11 @@ public class ShareServerService extends Service {
         monitorExecutor.shutdownNow();
         startExecutor.shutdownNow();
         syncExecutor.shutdownNow();
+        pokeExecutor.shutdownNow();
         if (nsdManager != null && registrationListener != null) { try { nsdManager.unregisterService(registrationListener); } catch (Exception ignored) {} }
         if (server != null) server.stop();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        if (wifiLock != null && wifiLock.isHeld()) wifiLock.release();
         super.onDestroy();
     }
 

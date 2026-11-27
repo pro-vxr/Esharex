@@ -24,6 +24,12 @@ public class ShareHttpServer extends NanoHTTPD {
     private final Map<String, JSONObject> users = new java.util.concurrent.ConcurrentHashMap<>();
     private final AtomicLong eventSequence = new AtomicLong(0L);
     private final AtomicLong syncCounter = new AtomicLong(0L);
+    private final Object changeLock = new Object();
+    private long changeToken = 0L;
+    private volatile Runnable changeListener;
+    private volatile Runnable pokeListener;
+    private volatile boolean merging = false;
+    void setListeners(Runnable onLocalChange, Runnable onPoke) { changeListener = onLocalChange; pokeListener = onPoke; }
     private final File messagesFile, dmFile, usersFile;
 
     public ShareHttpServer(Context context, File dataDir) {
@@ -53,6 +59,8 @@ public class ShareHttpServer extends NanoHTTPD {
             if (Method.OPTIONS.equals(method)) { Response r = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, ""); addCors(r); return r; }
             if ("/api/health".equals(uri)) return json(new JSONObject().put("ok", true).put("app", "eShareX").put("version", "2.8.4"));
             if ("/api/pair/info".equals(uri) && Method.GET.equals(method)) return pairInfo(session);
+            if ("/api/events/wait".equals(uri) && Method.GET.equals(method)) return waitForChange(session);
+            if ("/api/sync/poke".equals(uri) && Method.GET.equals(method)) { Runnable p = pokeListener; if (p != null) p.run(); return json(new JSONObject().put("ok", true)); }
             if ("/api/sync/export".equals(uri) && Method.GET.equals(method)) return syncExport(session);
             if ("/api/pair/code".equals(uri) && Method.GET.equals(method)) return json(new JSONObject().put("code", PairingCode.get(context)));
             if ("/api/server-info".equals(uri)) {
@@ -523,6 +531,30 @@ public class ShareHttpServer extends NanoHTTPD {
 
     private void touchSync(JSONObject m) {
         try { m.put("syncSeq", syncCounter.incrementAndGet()); } catch (Exception ignored) {}
+        bumpChange();
+    }
+
+    /** Wakes every waiting client (long-poll) and lets the service push the change to nearby phones. */
+    private void bumpChange() {
+        synchronized (changeLock) { changeToken++; changeLock.notifyAll(); }
+        Runnable l = changeListener;
+        if (l != null && !merging) { try { l.run(); } catch (Exception ignored) {} }
+    }
+
+    private Response waitForChange(IHTTPSession session) throws Exception {
+        long since = -1L;
+        try { since = Long.parseLong(session.getParms().getOrDefault("since", "-1")); } catch (Exception ignored) {}
+        long deadline = System.currentTimeMillis() + 25000L;
+        long token;
+        synchronized (changeLock) {
+            while (changeToken == since) {
+                long left = deadline - System.currentTimeMillis();
+                if (left <= 0L) break;
+                try { changeLock.wait(left); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+            }
+            token = changeToken;
+        }
+        return json(new JSONObject().put("token", token));
     }
 
     private Response syncExport(IHTTPSession session) throws Exception {
@@ -543,11 +575,14 @@ public class ShareHttpServer extends NanoHTTPD {
     /** Adds messages / edits / people that another phone has and this one does not. Never removes anything. */
     int mergeSync(JSONObject bundle) {
         int changed = 0;
-        synchronized (eventSequence) {
-            changed += mergeMessageList(bundle.optJSONArray("messages"), messages, messagesFile);
-            changed += mergeMessageList(bundle.optJSONArray("directMessages"), directMessages, dmFile);
-            changed += mergeUsers(bundle.optJSONArray("users"));
-        }
+        merging = true;
+        try {
+            synchronized (eventSequence) {
+                changed += mergeMessageList(bundle.optJSONArray("messages"), messages, messagesFile);
+                changed += mergeMessageList(bundle.optJSONArray("directMessages"), directMessages, dmFile);
+                changed += mergeUsers(bundle.optJSONArray("users"));
+            }
+        } finally { merging = false; }
         return changed;
     }
 
@@ -601,7 +636,7 @@ public class ShareHttpServer extends NanoHTTPD {
                 else if (remote.optLong("lastSeen", 0L) > existing.optLong("lastSeen", 0L)) { existing.put("lastSeen", remote.optLong("lastSeen", 0L)); changed++; }
             } catch (Exception ignored) {}
         }
-        if (changed > 0) usersDirty = true;
+        if (changed > 0) { usersDirty = true; bumpChange(); }
         return changed;
     }
 
